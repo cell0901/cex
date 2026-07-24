@@ -20,7 +20,12 @@ const TRADES_SCROLL_HEIGHT_PX = bookSideHeightPx * 2 + PRICE_SECTION_HEIGHT_PX;
 const scrollListClass =
   "scrollbar-hide overflow-y-auto overflow-x-hidden space-y-1";
 
-function Row({ price, size, total, tone }) {
+function Row({ price, size, total, tone }: {
+  price: string,
+  size: string,
+  total: number,
+  tone: "buy" | "sell",
+}) {
   const isBuy = tone === "buy";
   return (
     <div
@@ -76,18 +81,14 @@ function TradesList({ trades }: { trades: Trade[] }) {
   );
 }
 
-interface OrderbookProps {
-  currentPrice: string,
-}
-
-export function Orderbook({
-  currentPrice = "3",
-}: OrderbookProps) {
+export function Orderbook() {
 
   const [activeTab, setActiveTab] = useState("book");
   const [trades, setTrades] = useState<Trade[]>([])
   const [bids, setBids] = useState<[string, string][]>([["", ""]])
   const [asks, setAsks] = useState<[string, string][]>([["", ""]])
+  const [currentPrice, setCurrentPrice] = useState<{ price: number, side: "buy" | "sell" }>({ price: 0, side: "buy" });
+
   // const [buy, setBuy] = useState(50)
   // const [sell, setSell] = useState(50)
 
@@ -102,32 +103,86 @@ export function Orderbook({
       const json = await response.json();
       console.log("raw depth response", json);
 
-      setBids(json.payload.payload.bids);
-      setAsks(json.payload.payload.asks);
+      // set the bids total and max
+      setBids(json.payload.payload.bids.slice().sort((a, b) => Number(b[0]) - Number(a[0])));
+      setAsks(json.payload.payload.asks.slice().sort((a, b) => Number(b[0]) - Number(a[0])));
     }
 
     fetchDepth();
 
     SignalingManager.getInstance().registerCallback('DEPTH_UPDATE', (data: any) => {
       console.log("depth", data)
+      setBids((originalBids) => {
+        const bidsAfterUpdate = [...(originalBids || [])] // if originalBids is empty then instead of error use empty arr
+
+        for (let i = 0; i < bidsAfterUpdate.length; i++) { // for every bids in the array
+          // iterate all the new bids on each bid already in array
+          for (let j = 0; j < data.bids.length; j++) {
+            if (data.bids[j][0] == bidsAfterUpdate[i][0]) {
+              bidsAfterUpdate[i][1] = data.bids[j][1] // update the incoming quantity for that price
+              if (Number(bidsAfterUpdate[i][1]) == 0) {
+                // this means the price bid has no quantity so remvoe this from the depth or array
+                bidsAfterUpdate.splice(i, 1)
+              }
+              break; // this means for this bid we have got an match from the incoming bids so break;
+            }
+          }
+        }
+
+        // if the price doesnt match in existing bids then add the bid to the array
+
+        for (const bid of data.bids) {
+          const qty = bid[1];
+          if (Number(qty) !== 0 && !bidsAfterUpdate.some(x => x[0] === bid[0])) { // since on every loop there might be chance that we 
+            // add the new bid to array with same same price. so we add a check
+            bidsAfterUpdate.push(bid);
+          }
+        }
+
+        bidsAfterUpdate.sort((a, b) => Number(b[0]) - Number(a[0])); // sorting since we might push any price that doesnt exist in starting of array
+
+        return bidsAfterUpdate
+      })
+
+      setAsks((originalAsks) => {
+        const asksAfterUpdate = [...(originalAsks || [])]
+
+        for (let i = 0; i < asksAfterUpdate.length; i++) {
+          for (let j = 0; j < data.asks.length; j++) {
+            if (data.asks[j][0] == asksAfterUpdate[i][0]) {
+              asksAfterUpdate[i][1] = data.asks[j][1] // update the incoming quantity for that price
+              if (Number(asksAfterUpdate[i][1]) === 0) {
+                asksAfterUpdate.splice(i, 1)
+              }
+              break;
+            }
+          }
+        }
+
+
+        for (const ask of data.asks) {
+          const qty = ask[1];
+          if (Number(qty) !== 0 && !asksAfterUpdate.some(x => x[0] === ask[0])) {
+            asksAfterUpdate.push(ask);
+          }
+        }
+
+
+        asksAfterUpdate.sort((a, b) => Number(b[0]) - Number(a[0]));
+        return asksAfterUpdate
+      })
+
+
     }, "depth@SOL_USDC")
 
     SignalingManager.getInstance().sendMessage({ type: "SUBSCRIBE", params: ["depth@SOL_USDC"] })
 
-    return () => {
-      SignalingManager.getInstance().sendMessage({ type: "UNSUBSCRIBE", params: ["depth@SOL_USDC"] })
-      SignalingManager.getInstance().deRegisterCallback("DEPTH_UPDATE", "depth@SOL_USDC")
-    }
-
-  }, [])
-
-  useEffect(() => {
-    if (activeTab !== "trades") return;
 
     SignalingManager.getInstance().registerCallback("TRADE_PUBLISH", (data: any) => {
       console.log("trade", data);
 
       setTrades((prev) => [...prev, { price: data.trade.price, quantity: data.trade.quantity, side: data.trade.side }])
+      setCurrentPrice({ price: data.trade.price, side: data.trade.side })
     }, "trade@SOL_USDC");
 
     SignalingManager.getInstance().sendMessage({
@@ -135,12 +190,26 @@ export function Orderbook({
       params: ["trade@SOL_USDC"],
     });
 
+
     return () => {
+      SignalingManager.getInstance().sendMessage({ type: "UNSUBSCRIBE", params: ["depth@SOL_USDC"] })
+      SignalingManager.getInstance().deRegisterCallback("DEPTH_UPDATE", "depth@SOL_USDC")
+
       SignalingManager.getInstance().sendMessage({ type: "UNSUBSCRIBE", params: ["trade@SOL_USDC"] });
       SignalingManager.getInstance().deRegisterCallback("TRADE_PUBLISH", "trade@SOL_USDC");
-    };
+    }
 
-  }, [activeTab])
+  }, [])
+
+  // useEffect(() => {
+  //   if (activeTab !== "trades") return;
+  //
+  //   return () => {
+  //
+  //   };
+  //
+  // }, [activeTab])
+  //
 
   return (
     <div className="w-full max-w-sm rounded-xl bg-[#1E1F23] p-3 text-zinc-100 font-mono">
@@ -191,13 +260,13 @@ export function Orderbook({
 
         </div>
 
-        {/* Bids (buy side) */}
+        {/* Asks (sell side) */}
         <div
-          className={scrollListClass}
+          className="scrollbar-hide flex flex-col justify-end overflow-y-auto overflow-x-hidden gap-1"
           style={{ height: `${bookSideHeightPx}px` }}
         >
-          {bids.map((row, i) => (
-            <Row key={`bid-${i}`} tone="buy" price={row[0]} size={row[1]} total={0} />
+          {asks.map((row, i) => (
+            <Row key={`ask-${i}`} tone="sell" price={row[0]} size={row[1]} total={0} />
           ))}
         </div>
 
@@ -207,19 +276,19 @@ export function Orderbook({
           style={{ height: `${PRICE_SECTION_HEIGHT_PX}px` }}
         >
           <div>
-            <div className="flex items-center gap-1 text-md ml-1 font-semibold text-[#9dc049]">
-              <span className="min-h-[1.4em]">{currentPrice}</span>
+            <div className={`flex items-center gap-1 text-md ml-1 font-semibold ${currentPrice.side == 'buy' ? 'text-[#9dc049]' : 'text-[#c06f5a]'} `}>
+              <span className="min-h-[1.4em]">{currentPrice.price}</span>
             </div>
           </div>
         </div>
 
-        {/* Asks (sell side) */}
+        {/* Bids (buy side) */}
         <div
           className={scrollListClass}
           style={{ height: `${bookSideHeightPx}px` }}
         >
-          {asks.map((row, i) => (
-            <Row key={`ask-${i}`} tone="sell" price={row[0]} size={row[1]} total={0} />
+          {bids.map((row, i) => (
+            <Row key={`bid-${i}`} tone="buy" price={row[0]} size={row[1]} total={0} />
           ))}
         </div>
 

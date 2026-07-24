@@ -208,11 +208,11 @@ export class Engine {
 
     // then some worker for update db balances. db trades. publistradestoWs. publicdepthtows
 
-    // this.createDbTrades(fills, symbol)
+    this.createDbTrades(fills, symbol)
     // this.updateDbOrder(order, executedQuantity, symbol)
 
-    this.publishWsTrades(fills, symbol, userId)
     this.publishWsDepth(fills, price, symbol, orderbook, side)
+    this.publishWsTrades(fills, symbol, userId)
     return { fills, executedQuantity, orderId: order.orderId }
   }
 
@@ -413,7 +413,14 @@ export class Engine {
     if (side == "buy") {
 
       // get the updatedAsks. where if the ask price matches in any of one fill price array
-      const updatedAsks = depth.asks.filter(x => fills.map(fill => fill.price).includes(Number(x[0])))
+
+      const fillPrices = fills.map(fill => fill.price.toString())
+
+      const updatedAsks: [string, string][] = fillPrices.map(fillprice => { // updatedAsks that have filled means 0 quantity
+        // we send to frontend to remove it in UI
+        const existing = depth.asks.find(x => x[0] == fillprice)
+        return existing || [fillprice, "0"]
+      })
 
       // find the element where the price matches with the order. and we return the updated quantity for that price
       const updatedBid = depth.bids.find(x => x[0] === price);
@@ -426,7 +433,13 @@ export class Engine {
         }
       })
     } else {
-      const updatedBids = depth.bids.filter(x => fills.map(fill => fill.price).includes(Number(x[0])))
+
+      const fillPrices = fills.map(fill => fill.price.toString())
+
+      const updatedBids: [string, string][] = fillPrices.map(fillprice => {
+        const existing = depth.bids.find(x => x[0] == fillprice)
+        return existing || [fillprice, "0"]
+      })
 
       const updatedAsk = depth.asks.find(x => x[0] === price)
 

@@ -20,7 +20,7 @@ async function main() {
   const engine = new Engine()
   const redisClient = createClient()
   await redisClient.connect()
-  // infinite runing loop. constantly removing messages from the the queu
+  // infinite runing loop. constantly removing messages from the the queue
   // should use brpop since it will not run loop continously spiking cpu usage instead 
   // it will block on the connection waiting for nay new message
   while (true) {

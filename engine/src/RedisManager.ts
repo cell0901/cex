@@ -27,6 +27,7 @@ export class RedisManager {
   }
 
   pushMessage(message: DbMessage) { // push message to db 
+    console.log("db publish from engine", message)
     this.client.lPush("db_publish", JSON.stringify(message))
   }
 

@@ -1,4 +1,4 @@
-import { CandlestickSeries, ColorType, createChart, type IChartApi } from "lightweight-charts";
+import { CandlestickSeries, ColorType, createChart, type IChartApi, type UTCTimestamp } from "lightweight-charts";
 import { OrderEntry } from "./order"
 import { Orderbook } from "./orderbook"
 import { OpenOrders } from "./open-orders"
@@ -6,16 +6,29 @@ import { TradeNavbar } from "./nav"
 import { useEffect, useRef, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { SignalingManager } from "../utils/SignalingManager";
+import { getKlines } from "../utils/http";
+import { Check } from "lucide-react";
 
 // this should be dynamic route. means diff orderbook and trades and charts for diff market/symbols
 const CHART_HEIGHT = 550;
 
-export default function Trade() {
+function OrderSuccessCard({ side }: { side: "buy" | "sell" }) {
+  return (
+    <div className="fixed left-1/2 -translate-x-1/2 z-50">
+      <div className="flex items-center gap-2  text-white text-[13.5px] font-medium px-4 py-2.5 ">
+        <Check size={14} className="text-green-400 shrink-0" />
+        {side == "buy" ? "Buy" : "Sell"} Successful
+      </div>
+    </div>
+  );
+}
 
+export default function Trade() {
 
   const navigate = useNavigate()
   const chartContainer = useRef<HTMLDivElement>(null)
   const [authStatus, setAuthStatus] = useState("pending")
+  const [orderSuccess, setOrderSuccess] = useState<{ success: boolean, side: "buy" | "sell" }>({ success: false, side: "buy" })
 
   const chartInstanceRef = useRef<IChartApi | null>(null);
 
@@ -46,6 +59,7 @@ export default function Trade() {
     const container = chartContainer.current;
     if (!container) return;
 
+
     const chart = createChart(container, {
       width: container.clientWidth,
       height: CHART_HEIGHT,
@@ -57,8 +71,11 @@ export default function Trade() {
         vertLines: { color: 'rgba(255, 255, 255, 0.06)' },
         horzLines: { color: 'rgba(255, 255, 255, 0.06)' },
       },
+      timeScale: {
+        timeVisible: true,
+        secondsVisible: false
+      }
     });
-
 
     chartInstanceRef.current = chart
 
@@ -73,18 +90,16 @@ export default function Trade() {
       wickDownColor: '#FF3B69',
     });
 
-    lineSeries.setData([
-      { time: '2026-06-15', open: 142.10, high: 145.40, low: 141.00, close: 144.80 },
-      { time: '2026-06-16', open: 144.80, high: 148.90, low: 143.20, close: 147.10 },
-      { time: '2026-06-17', open: 147.10, high: 147.50, low: 139.10, close: 140.30 },
-      { time: '2026-06-18', open: 140.30, high: 143.00, low: 138.50, close: 142.50 },
-      { time: '2026-06-19', open: 142.50, high: 146.20, low: 141.80, close: 145.90 },
-      { time: '2026-06-22', open: 145.90, high: 152.00, low: 145.50, close: 151.20 },
-      { time: '2026-06-23', open: 151.20, high: 153.40, low: 149.00, close: 149.80 },
-      { time: '2026-06-24', open: 149.80, high: 150.50, low: 144.20, close: 145.10 },
-      { time: '2026-06-25', open: 145.10, high: 148.30, low: 143.90, close: 147.60 },
-      { time: '2026-06-26', open: 147.60, high: 155.00, low: 147.00, close: 153.90 }
-    ]);
+    // startime currently is one day ago. endTime is currently current time
+    getKlines("SOL_USDC", "1h", Math.floor((new Date().getTime() - 1000 * 60 * 60 * 24) / 1000), Math.floor(new Date().getTime() / 1000)).then((klines) => {
+      lineSeries.setData(klines.map(kline => ({
+        time: Math.floor(new Date(kline.time).getTime() / 1000) as UTCTimestamp,
+        open: kline.open,
+        high: kline.high,
+        low: kline.low,
+        close: kline.close
+      })))
+    })
 
     const resize = () => {
       chart.applyOptions({ width: container.clientWidth });
@@ -151,9 +166,17 @@ export default function Trade() {
     return <Navigate to="/login" />
   }
 
+  const handleOrderSuccess = (side: "buy" | "sell") => {
+    setOrderSuccess({ success: true, side })
+    setTimeout(() => {
+      setOrderSuccess({ success: false, side })
+    }, 4000)
+  }
+
   return (
     <div className="flex h-screen flex-col bg-[#17191A]">
       <TradeNavbar />
+      {orderSuccess.success && <OrderSuccessCard side={orderSuccess.side} />}
       <div className="flex min-h-0 flex-1 overflow-y-auto">
         <div className="flex min-w-0 flex-1 flex-col">
           <div className="flex items-start">
@@ -184,9 +207,7 @@ export default function Trade() {
               </div>
             </div>
             <div className="shrink-0 p-3">
-              <Orderbook
-                currentPrice="0.5691"
-              />
+              <Orderbook />
             </div>
           </div>
           <div className="pb-6 pl-6 pr-3 pt-4">
@@ -194,7 +215,9 @@ export default function Trade() {
           </div>
         </div>
         <div className="sticky top-0 shrink-0 self-start p-3">
-          <OrderEntry />
+          <OrderEntry availableBalance="0" total="0" orderSuccessToast={(side) => {
+            handleOrderSuccess(side)
+          }} />
         </div>
       </div>
     </div>

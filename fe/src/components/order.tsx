@@ -5,9 +5,9 @@ import { BACKEND_URL } from "../utils";
 
 export function OrderEntry({
   availableBalance = "0",
-  balanceAsset = "USDC",
   total = "0.00",
-}) {
+  orderSuccessToast
+}: { availableBalance: string, total: string, orderSuccessToast: (side: "buy" | "sell") => void }) {
   const [orderType] = useState("Limit");
   const [price, setPrice] = useState('')
   const [quantity, setQuantity] = useState('')
@@ -33,6 +33,7 @@ export function OrderEntry({
       })
       const data = await response.json()
       console.log(data)
+      return data
     }
   })
 
@@ -55,6 +56,7 @@ export function OrderEntry({
       })
       const data = await response.json()
       console.log(data)
+      return data
     }
   })
 
@@ -82,7 +84,7 @@ export function OrderEntry({
 
       {/* Available balance */}
       <div className="mb-2 flex items-center justify-between text-[13px] text-zinc-400">
-        <span>Avbl - {balanceAsset}</span>
+        <span>Avbl - {"USDC"}</span>
         <span className="text-zinc-200">{availableBalance}</span>
       </div>
 
@@ -132,6 +134,12 @@ export function OrderEntry({
               side: "buy",
               price,
               quantity
+            }, {
+              onSuccess: (data) => {
+                if (data.payload.type == "ORDER_PLACED") {
+                  orderSuccessToast("buy")
+                }
+              }
             })
           }}
           className="rounded-lg bg-[#9dc049] py-3 text-sm font-bold text-[#1a2606] hover:opacity-90"
@@ -147,6 +155,12 @@ export function OrderEntry({
               side: "sell",
               price,
               quantity
+            }, {
+              onSuccess: (data) => {
+                if (data.payload.type == "ORDER_PLACED") {
+                  orderSuccessToast("sell")
+                }
+              }
             })
           }}
           className="rounded-lg bg-[#e8a98c] py-3 text-sm font-bold text-[#4a1d0e] hover:opacity-90"
@@ -160,7 +174,7 @@ export function OrderEntry({
         <div className="flex justify-between">
           <span>Total</span>
           <span className="text-zinc-200">
-            {total} {balanceAsset}
+            {total} {"USDC"}
           </span>
         </div>
       </div>
