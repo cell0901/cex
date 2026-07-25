@@ -25,7 +25,7 @@ authRouter.post('/signup', asyncHandler(async (req, res) => {
   const user = await prisma.user.create({
     data: {
       username: data.username,
-      password: data.password
+      password: data.password,
     }
   })
   // asyncHandler  should handle show error if creating unique field

@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { BACKEND_URL } from "../utils";
 import { SignalingManager } from "../utils/SignalingManager";
+import { TradesList } from "./TradesRow";
 
-interface Trade {
+export interface Trade {
   price: number,
   quantity: string,
   side: "buy" | "sell"
@@ -15,71 +16,98 @@ const bookSideHeightPx =
   VISIBLE_BOOK_ROWS * BOOK_ROW_HEIGHT_PX +
   (VISIBLE_BOOK_ROWS - 1) * BOOK_ROW_GAP_PX;
 const PRICE_SECTION_HEIGHT_PX = 36;
-const TRADES_SCROLL_HEIGHT_PX = bookSideHeightPx * 2 + PRICE_SECTION_HEIGHT_PX;
+export const TRADES_SCROLL_HEIGHT_PX = bookSideHeightPx * 2 + PRICE_SECTION_HEIGHT_PX;
 
-const scrollListClass =
+export const scrollListClass =
   "scrollbar-hide overflow-y-auto overflow-x-hidden space-y-1";
 
-function Row({ price, size, total, tone }: {
+function Row({ price, size, total, tone, maxTotal }: {
   price: string,
   size: string,
   total: number,
   tone: "buy" | "sell",
+  maxTotal: number
 }) {
   const isBuy = tone === "buy";
-  return (
-    <div
-      className={[
-        "flex min-h-[24px] shrink-0 items-center justify-between rounded-2xl px-1.5 text-[13px] tabular-nums",
-        isBuy
-          ? "bg-[#9dc049]/10 text-[#9dc049]"
-          : "bg-[#c06f5a]/10 text-[#c06f5a]",
-      ].join(" ")}
-    >
-      <span className="w-1/3 text-left ">{price}</span>
-      <span className="w-1/3 text-center text-zinc-200">{size}</span>
-      <span className="w-1/3 text-right  text-zinc-200">{total}</span>
-    </div>
-  );
-}
-
-function TradesRow({ price, quantity, side }: Trade) {
-  const isBuy = side === "buy";
-  return (
-    <div
-      className={[
-        "flex min-h-[24px] shrink-0 items-center justify-between rounded-2xl px-1.5 text-[13px] tabular-nums",
-        isBuy
-          ? "bg-[#9dc049]/10 text-[#9dc049]"
-          : "bg-[#c06f5a]/10 text-[#c06f5a]",
-      ].join(" ")}
-    >
-      <span className="w-1/2 text-left">{price}</span>
-      <span className="w-1/2 text-right text-zinc-200">{quantity}</span>
-    </div>
-  );
-}
-
-function TradesList({ trades }: { trades: Trade[] }) {
+  const pct = (100 * total) / maxTotal;
 
   return (
-    <>
-      <div className="flex justify-between mx-1 text-sm">
-        <div>Price</div>
-        <div>Qty</div>
-      </div>
+    <div className="relative flex min-h-[24px] shrink-0 items-center justify-between rounded-2xl px-1.5 text-[13px] tabular-nums">
+      {/* depth bar, sized independently, doesn't affect text layout */}
       <div
-        className={scrollListClass}
-        style={{ height: `${TRADES_SCROLL_HEIGHT_PX}px` }}
-      >
-        {trades.map((row, i) => (
-          <TradesRow key={`trade-${i}`} {...row} />
-        ))}
-      </div>
-      <div className="mt-3 h-5" aria-hidden />
-    </>
+        className={[
+          "absolute inset-y-0 right-0 rounded-2xl",
+          isBuy ? "bg-[#9dc049]/10" : "bg-[#c06f5a]/10",
+        ].join(" ")}
+        style={{ width: `${pct}%` }}
+      />
+
+      {/* text layer, always full width, sits above the bar */}
+      <span className={`relative z-10 w-1/3 text-left ${isBuy ? "text-[#9dc049]" : "text-[#c06f5a]"}`}>
+        {price}
+      </span>
+      <span className="relative z-10 w-1/3 text-center text-zinc-200">{size}</span>
+      <span className="relative z-10 w-1/3 text-right text-zinc-200">{total.toFixed(2)}</span>
+    </div>
   );
 }
+
+function BidsTable({ bids }: { bids: [string, string][] }) {
+
+  const relevantBids = bids.slice(0, 15);
+  const bidsWithTotal: [string, string, number][] = [];
+
+  let runningTotal = 0;
+
+  for (const [price, quantity] of relevantBids) {
+    runningTotal += Number(quantity);
+    bidsWithTotal.push([price, quantity, runningTotal]);
+  }
+
+  // total of all the relaventBids to show the buy sell pressure bar
+  const maxTotal = runningTotal
+
+  return <div
+    className={scrollListClass}
+    style={{ height: `${bookSideHeightPx}px` }}
+  >
+    {bidsWithTotal.map((row, i) => (
+      <Row key={`bid-${i}`} tone="buy" price={row[0]} size={row[1]} total={row[2]} maxTotal={maxTotal} />
+    ))}
+  </div>
+}
+
+function AsksTable({ asks }: { asks: [string, string][] }) {
+
+  const relevantAsks = asks.slice(0, 15);
+  relevantAsks.reverse() // since asks are highest price to lowest. since the lowest once is in the middle
+  // so we first reverse them
+
+  // get the correct size total  and put them in array
+  const asksWithTotal: [string, string, number][] = [];
+
+  let runningTotal = 0;
+
+  for (const [price, qty] of relevantAsks) {
+    runningTotal += Number(qty)
+    asksWithTotal.push([price, qty, runningTotal])
+  }
+
+  // then finally to render lowest price to highest from middle we reverse it
+  asksWithTotal.reverse()
+
+  const maxTotal = runningTotal
+
+  return <div
+    className="scrollbar-hide flex flex-col justify-end overflow-y-auto overflow-x-hidden gap-1"
+    style={{ height: `${bookSideHeightPx}px` }}
+  >
+    {asksWithTotal.map((row, i) => (
+      <Row key={`ask-${i}`} tone="sell" price={row[0]} size={row[1]} total={row[2]} maxTotal={maxTotal} />
+    ))}
+  </div>
+}
+
 
 export function Orderbook() {
 
@@ -89,13 +117,23 @@ export function Orderbook() {
   const [asks, setAsks] = useState<[string, string][]>([["", ""]])
   const [currentPrice, setCurrentPrice] = useState<{ price: number, side: "buy" | "sell" }>({ price: 0, side: "buy" });
 
-  // const [buy, setBuy] = useState(50)
-  // const [sell, setSell] = useState(50)
+  const { buyPct, sellPct } = useMemo(() => {
+    const topBids = bids.slice(0, 15);
+    const topAsks = asks.slice(0, 15);
 
+    const bidTotal = topBids.reduce((acc, [, qty]) => acc + Number(qty), 0);
+    const askTotal = topAsks.reduce((acc, [, qty]) => acc + Number(qty), 0);
 
-  // useEffect(() => {
-  // }, [])
-  //
+    const total = bidTotal + askTotal;
+
+    if (total === 0) {
+      return { buyPct: 50, sellPct: 50 }; // fallback so bar isn't 0-width on load
+    }
+
+    const buyPct = Math.floor((bidTotal / total) * 100); // to percentage
+    return { buyPct, sellPct: 100 - buyPct };
+  }, [bids, asks]);
+
 
   useEffect(() => {
     async function fetchDepth() {
@@ -104,6 +142,7 @@ export function Orderbook() {
       console.log("raw depth response", json);
 
       // set the bids total and max
+      //
       setBids(json.payload.payload.bids.slice().sort((a, b) => Number(b[0]) - Number(a[0])));
       setAsks(json.payload.payload.asks.slice().sort((a, b) => Number(b[0]) - Number(a[0])));
     }
@@ -201,15 +240,6 @@ export function Orderbook() {
 
   }, [])
 
-  // useEffect(() => {
-  //   if (activeTab !== "trades") return;
-  //
-  //   return () => {
-  //
-  //   };
-  //
-  // }, [activeTab])
-  //
 
   return (
     <div className="w-full max-w-sm rounded-xl bg-[#1E1F23] p-3 text-zinc-100 font-mono">
@@ -261,14 +291,7 @@ export function Orderbook() {
         </div>
 
         {/* Asks (sell side) */}
-        <div
-          className="scrollbar-hide flex flex-col justify-end overflow-y-auto overflow-x-hidden gap-1"
-          style={{ height: `${bookSideHeightPx}px` }}
-        >
-          {asks.map((row, i) => (
-            <Row key={`ask-${i}`} tone="sell" price={row[0]} size={row[1]} total={0} />
-          ))}
-        </div>
+        <AsksTable asks={asks} />
 
         {/* Current price / NAV */}
         <div
@@ -283,14 +306,7 @@ export function Orderbook() {
         </div>
 
         {/* Bids (buy side) */}
-        <div
-          className={scrollListClass}
-          style={{ height: `${bookSideHeightPx}px` }}
-        >
-          {bids.map((row, i) => (
-            <Row key={`bid-${i}`} tone="buy" price={row[0]} size={row[1]} total={0} />
-          ))}
-        </div>
+        <BidsTable bids={bids} />
 
         {/* Buy/Sell pressure bar */}
         <div className="mt-3">
@@ -298,24 +314,24 @@ export function Orderbook() {
             <div
               className="relative inline-flex pl-2 items-center h-full rounded-l-xs text-[#006609] transition-[width] duration-400 ease-in-out"
               style={{
-                width: `${60}%`,
+                width: `${buyPct}%`,
                 backgroundColor: "#9dc049",
                 opacity: 0.7,
                 clipPath: "polygon(0 0, 100% 0, calc(100% - 5px) 100%, 0 100%)"
               }}
             >
-              {60}%
+              {buyPct}%
             </div>
             <div
               className="relative inline-flex flex justify-end pr-2 items-center h-full rounded-r-xs text-[#8e1300] transition-[width] duration-400 ease-in-out"
               style={{
-                width: `${40}%`,
+                width: `${sellPct}%`,
                 backgroundColor: "#c06f5a",
                 opacity: 0.7,
                 clipPath: "polygon(5px 0, 100% 0, 100% 100%, 0 100%)"
               }}
             >
-              {40}%
+              {sellPct}%
             </div>
           </div>
 
