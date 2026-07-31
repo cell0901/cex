@@ -7,7 +7,8 @@ export type wsMessage = {
     quantity: string,
     tradeId: string
     otherUserId: string
-    symbol: string
+    symbol: string,
+    side: "buy" | "sell"
 
   }
 } | {

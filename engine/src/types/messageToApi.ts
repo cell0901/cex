@@ -7,6 +7,7 @@ export type responseType = "success" | "failed"
 export const ORDER_PLACED = "ORDER_PLACED"
 export const ORDER_CANCELLED = "ORDER_CANCELLED"
 export const ON_RAMP = "ON_RAMP"
+export const ON_RAMP_BASE = "ON_RAMP_BASE"
 
 export type MessageToApi = {
   type: typeof ORDER_PLACED,
@@ -35,6 +36,11 @@ export type MessageToApi = {
   }
 } | {
   type: typeof ON_RAMP,
+  payload: {
+    message: string
+  }
+} | {
+  type: typeof ON_RAMP_BASE,
   payload: {
     message: string
   }

@@ -103,3 +103,29 @@ authRouter.post('/onramp', authMiddleware, asyncHandler(async (req, res) => {
 
 }))
 
+authRouter.post('/onramp-base', authMiddleware, asyncHandler(async (req, res) => {
+
+  const { data, success } = onRampSchema.safeParse(req.body)
+
+
+  if (!success) {
+    res.status(401).json({
+      message: "wrong inputs"
+    })
+    return
+  }
+
+  const response = await RedisManager.getInstance().send({
+    type: "ON_RAMP_BASE",
+    data: {
+      amount: data.amount,
+      userId: req.userId
+    }
+  })
+
+  res.status(200).json({
+    message: response
+  })
+  // also increase the balance in the db
+
+}))

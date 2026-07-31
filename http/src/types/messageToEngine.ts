@@ -34,6 +34,12 @@ export type MessageToEngine = {
   data: {
     symbol: string,
   }
+} | {
+  type: "ON_RAMP_BASE",
+  data: {
+    amount: string,
+    userId: string
+  }
 }
 
 

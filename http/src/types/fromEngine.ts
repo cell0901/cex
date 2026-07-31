@@ -5,6 +5,7 @@ export const ORDER_PLACED = "ORDER_PLACED"
 export const ORDER_CANCELLED = "ORDER_CANCELLED"
 export const GET_BALANCE = "GET_BALANCE"
 export const ON_RAMP = "ON_RAMP"
+export const ON_RAMP_BASE = "ON_RAMP_BASE"
 
 export interface Order {
   userId: string,
@@ -56,6 +57,11 @@ export type fromEngine = {
   }
 } | {
   type: typeof ON_RAMP,
+  payload: {
+    message: string
+  }
+} | {
+  type: typeof ON_RAMP_BASE,
   payload: {
     message: string
   }

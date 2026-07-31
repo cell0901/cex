@@ -131,6 +131,17 @@ export class Engine {
           }
         })
         break;
+      case "ON_RAMP_BASE":
+        this.onRampBase(message.data.userId, Number(message.data.amount))
+
+        RedisManager.getInstance().sendToApi(clientId, {
+          type: "ON_RAMP_BASE",
+          payload: {
+            message: "onramp succesfull for base"
+          }
+        })
+
+        break;
     }
   }
 
@@ -146,7 +157,7 @@ export class Engine {
     if (side == "sell") {
       this.balances.set(userId, {
         ["SOL"]: {
-          available: 20,
+          available: 500,
           locked: 0
         },
       })
@@ -213,6 +224,7 @@ export class Engine {
 
     this.publishWsDepth(fills, price, symbol, orderbook, side)
     this.publishWsTrades(fills, symbol, userId)
+    this.publishWsBalance(userId)
     return { fills, executedQuantity, orderId: order.orderId }
   }
 
@@ -235,7 +247,7 @@ export class Engine {
         throw new Error("insufficent base asset")
       }
       this.balances.get(userId)![orderbook.baseAsset]!.available = this.balances.get(userId)![orderbook.baseAsset]!.available - Number(quantity)
-      this.balances.get(userId)![orderbook.baseAsset]!.locked = Number(quantity) // this quantity is locked to sell on the orderbook
+      this.balances.get(userId)![orderbook.baseAsset]!.locked += Number(quantity) // this quantity is locked to sell on the orderbook
     }
   }
 
@@ -304,6 +316,10 @@ export class Engine {
         ["USDC"]: {
           available: amount,
           locked: 0
+        },
+        ["SOL"]: { // this should be  removed. since on every deposit this will make the user balance 0
+          available: 0,
+          locked: 0
         }
       });
 
@@ -371,6 +387,7 @@ export class Engine {
       if (price) {
         this.sendWsDepthUpdateOnCancel(price.toString(), symbol)
       }
+      this.publishWsBalance(cancelOrder.userId)
 
       return cancelOrder.filled // returning executedQuantity back to the apoi
     } else {
@@ -383,6 +400,7 @@ export class Engine {
       if (price) {
         this.sendWsDepthUpdateOnCancel(price.toString(), symbol)
       }
+      this.publishWsBalance(cancelOrder.userId)
       return cancelOrder.filled
     }
 
@@ -399,7 +417,8 @@ export class Engine {
           quantity: fill.quantity.toString(),
           tradeId: fill.tradeId.toString(),
           otherUserId: fill.otherUserId,
-          symbol: symbol // market
+          symbol: symbol, // market
+          side: fill.side
         }
       })
     })
@@ -497,4 +516,20 @@ export class Engine {
       }
     })
   }
+
+  onRampBase(userId: string, amount: number) {
+    const userBalance = this.balances.get(userId);
+    if (!userBalance) {
+      this.balances.set(userId, {
+        ["SOL"]: {
+          available: amount,
+          locked: 0
+        }
+      });
+
+    } else {
+      userBalance["SOL"]!.available += amount;
+    }
+  }
 }
+

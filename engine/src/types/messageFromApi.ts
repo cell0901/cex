@@ -2,6 +2,7 @@ export const CREATE_ORDER = "CREATE_ORDER"
 export const GET_OPEN_ORDERS = "GET_OPEN_ORDERS"
 export const CANCEL_ORDER = "CANCEL_ORDER"
 export const ON_RAMP = "ON_RAMP"
+export const ON_RAMP_BASE = "ON_RAMP_BASE"
 export const GET_DEPTH = "GET_DEPTH"
 export const GET_BALANCE = "GET_BALANCE"
 
@@ -42,5 +43,11 @@ export type MessageFromApi = {
   type: typeof GET_DEPTH,
   data: {
     symbol: string,// btc/usd 
+  }
+} | {
+  type: typeof ON_RAMP_BASE,
+  data: {
+    amount: string,
+    userId: string
   }
 }
