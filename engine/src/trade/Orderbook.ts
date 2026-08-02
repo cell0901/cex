@@ -250,4 +250,14 @@ export class Orderbook {
       asks
     }
   }
+
+  searchAsksForUser(incomingBidUserId: string, buyPrice: string) {
+    const found = this.asks.some(ask => ask.userId == incomingBidUserId && ask.price <= Number(buyPrice))
+    return found
+  }
+
+  searchBidsForUser(incomingAskUserId: string, sellPrice: string) {
+    const found = this.bids.some(bid => bid.userId == incomingAskUserId && bid.price >= Number(sellPrice))
+    return found
+  }
 }

@@ -25,6 +25,8 @@ export class Engine {
 
       case "CREATE_ORDER":
         try {
+          this.preventSelfTrade(message.data.symbol, message.data.side, message.data.price, message.data.userId)
+
           const { fills, executedQuantity, orderId } = this.createOrder(message.data.symbol, message.data.type, message.data.side, message.data.price, message.data.quantity, message.data.userId)
 
           RedisManager.getInstance().sendToApi(clientId, {
@@ -152,15 +154,6 @@ export class Engine {
 
     if (!orderbook) {
       throw new Error("no orderbook found")
-    }
-
-    if (side == "sell") {
-      this.balances.set(userId, {
-        ["SOL"]: {
-          available: 500,
-          locked: 0
-        },
-      })
     }
 
 
@@ -302,31 +295,13 @@ export class Engine {
         actualySpent += fill.quantity
       }
 
-
-
       this.balances.get(userId)![orderbook.quoteAsset]!.available += (totalFilllAmount * Number(price)) // every baseAsset he matched * price
       this.balances.get(userId)![orderbook.baseAsset]!.locked -= totalFilllAmount
     }
   }
 
   onRamp(userId: string, amount: number) { // currently we have set the onRamp asset to be usdc only
-    const userBalance = this.balances.get(userId);
-    if (!userBalance) {
-      this.balances.set(userId, {
-        ["USDC"]: {
-          available: amount,
-          locked: 0
-        },
-        ["SOL"]: { // this should be  removed. since on every deposit this will make the user balance 0
-          available: 0,
-          locked: 0
-        }
-      });
-
-    } else {
-      userBalance["USDC"]!.available += amount;
-    }
-
+    this.creditAsset(userId, "USDC", amount)
   }
 
   createDbTrades(fills: Fill[], symbol: string) { // this will push all the trades to timescale db. (currently not pushing to userId main db)
@@ -357,11 +332,6 @@ export class Engine {
         market: symbol
       }
     })
-
-    // fills.forEach((fill) => {
-    //
-    // })
-
   }
 
   cancelOrder(orderId: string, cancelOrderbook: Orderbook, symbol: string) {
@@ -518,17 +488,47 @@ export class Engine {
   }
 
   onRampBase(userId: string, amount: number) {
-    const userBalance = this.balances.get(userId);
-    if (!userBalance) {
-      this.balances.set(userId, {
-        ["SOL"]: {
-          available: amount,
-          locked: 0
-        }
-      });
+    this.creditAsset(userId, "SOL", amount)
+  }
 
+  private creditAsset(userId: string, asset: string, amount: number) {
+    let balance = this.balances.get(userId) // get the balance 
+
+    if (!balance) { // if new user nothing exist then create empty balance obj for him
+      balance = {}
+      this.balances.set(userId, balance)
+    }
+
+    if (!balance[asset]) { // if balance exist then check whether this key already exist . if not then initialize with 0 balance
+      balance[asset] = {// e.g "USDC" or "SOL"
+        available: 0,
+        locked: 0
+      }
+    }
+
+    // increase the balance.
+    balance[asset].available += amount
+  }
+
+  preventSelfTrade(symbol: string, side: "buy" | "sell", price: string, userId: string) {
+    const orderbook = this.orderbooks.find(o => o.getTicker() === symbol) // this will return the instance of orderbook class with this ticker
+    if (!orderbook) {
+      throw new Error("no orderbook found")
+    }
+
+    if (side == "buy") {
+      // then check oppose asks sitting for this same userId
+      const found = orderbook.searchAsksForUser(userId, price)
+
+      if (found) {
+        throw new Error("User is trying to self Trade. Buy cancelled")
+      }
     } else {
-      userBalance["SOL"]!.available += amount;
+
+      const found = orderbook.searchBidsForUser(userId, price)
+      if (found) {
+        throw new Error("User is trying to self Trade. Sell cancelled")
+      }
     }
   }
 }
