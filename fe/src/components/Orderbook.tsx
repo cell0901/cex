@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { BACKEND_URL } from "../utils";
 import { SignalingManager } from "../utils/SignalingManager";
 import { TradesList } from "./TradesRow";
@@ -36,7 +36,7 @@ function Row({ price, size, total, tone, maxTotal }: {
       {/* depth bar, sized independently, doesn't affect text layout */}
       <div
         className={[
-          "absolute inset-y-0 right-0 rounded-2xl",
+          "absolute inset-y-0 right-0 rounded-md transition-[width] duration-300 ease-out",
           isBuy ? "bg-[#9dc049]/10" : "bg-[#c06f5a]/10",
         ].join(" ")}
         style={{ width: `${pct}%` }}
@@ -79,6 +79,21 @@ function BidsTable({ bids }: { bids: [string, string][] }) {
 
 function AsksTable({ asks }: { asks: [string, string][] }) {
 
+  const asksScrollRef = useRef<HTMLDivElement>(null);
+  const followsBestAskRef = useRef(true);
+
+  useEffect(() => {
+    const container = asksScrollRef.current;
+    if (container && followsBestAskRef.current) {
+      container.scrollTop = container.scrollHeight;
+    }
+  }, [asks]);
+
+  const handleAskScroll = (event: React.UIEvent<HTMLDivElement>) => {
+    const { scrollTop, scrollHeight, clientHeight } = event.currentTarget;
+    followsBestAskRef.current = scrollHeight - scrollTop - clientHeight < 4;
+  };
+
   const relevantAsks = asks.slice(0, 15);
   relevantAsks.reverse() // since asks are highest price to lowest. since the lowest once is in the middle
   // so we first reverse them
@@ -99,12 +114,15 @@ function AsksTable({ asks }: { asks: [string, string][] }) {
   const maxTotal = runningTotal
 
   return <div
-    className="scrollbar-hide flex flex-col justify-end overflow-y-auto overflow-x-hidden gap-1"
-    style={{ height: `${bookSideHeightPx}px` }}
+    ref={asksScrollRef}
+    onScroll={handleAskScroll}
+    className="scrollbar-hide overflow-y-auto overflow-x-hidden" style={{ height: `${bookSideHeightPx}px` }}
   >
-    {asksWithTotal.map((row, i) => (
-      <Row key={`ask-${i}`} tone="sell" price={row[0]} size={row[1]} total={row[2]} maxTotal={maxTotal} />
-    ))}
+    <div className="flex min-h-full flex-col justify-end gap-1">
+      {asksWithTotal.map((row, i) => (
+        <Row key={`ask-${i}`} tone="sell" price={row[0]} size={row[1]} total={row[2]} maxTotal={maxTotal} />
+      ))}
+    </div>
   </div>
 }
 
@@ -139,7 +157,6 @@ export function Orderbook() {
     async function fetchDepth() {
       const response = await fetch(`${BACKEND_URL}/depth?symbol=SOL_USDC`);
       const json = await response.json();
-      console.log("raw depth response", json);
 
       // set the bids total and max
       //
@@ -150,7 +167,6 @@ export function Orderbook() {
     fetchDepth();
 
     SignalingManager.getInstance().registerCallback('DEPTH_UPDATE', (data: any) => {
-      console.log("depth", data)
       setBids((originalBids) => {
         const bidsAfterUpdate = [...(originalBids || [])] // if originalBids is empty then instead of error use empty arr
 
@@ -218,9 +234,7 @@ export function Orderbook() {
 
 
     SignalingManager.getInstance().registerCallback("TRADE_PUBLISH", (data: any) => {
-      console.log("trade", data);
-
-      setTrades((prev) => [...prev, { price: data.trade.price, quantity: data.trade.quantity, side: data.trade.side }])
+      setTrades((prev) => [{ price: data.trade.price, quantity: data.trade.quantity, side: data.trade.side }, ...prev])
       setCurrentPrice({ price: data.trade.price, side: data.trade.side })
     }, "trade@SOL_USDC");
 
@@ -242,7 +256,7 @@ export function Orderbook() {
 
 
   return (
-    <div className="w-full max-w-sm rounded-xl bg-[#1E1F23] p-3 text-zinc-100 font-mono">
+    <div className="w-[255px] rounded-xl bg-[#1E1F23] p-3 text-zinc-100 font-mono">
       <div className="mb-2 flex items-center gap-2">
         <div className="w-15 h-10">
 

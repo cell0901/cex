@@ -1,8 +1,8 @@
 import { CandlestickSeries, ColorType, createChart, type IChartApi, type UTCTimestamp } from "lightweight-charts";
-import { OrderEntry } from "./order"
-import { Orderbook } from "./orderbook"
-import { OpenOrders } from "./open-orders"
-import { TradeNavbar } from "./nav"
+import { OrderEntry } from "./Order"
+import { Orderbook } from "./Orderbook"
+import { OpenOrders } from "./Open-orders"
+import { TradeNavbar } from "./Nav"
 import { useEffect, useRef, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { SignalingManager } from "../utils/SignalingManager";
@@ -15,7 +15,7 @@ const CHART_HEIGHT = 550;
 function OrderSuccessCard({ side }: { side: "buy" | "sell" }) {
   return (
     <div className="fixed left-1/2 -translate-x-1/2 z-50">
-      <div className="flex items-center gap-2  text-white text-[13.5px] font-medium px-4 py-2.5 ">
+      <div className="flex items-center gap-2  text-white text-[13.5px] font-mono px-4 py-2.5 ">
         <Check size={14} className="text-green-400 shrink-0" />
         {side == "buy" ? "Buy" : "Sell"} Successful
       </div>
@@ -29,6 +29,7 @@ export default function Trade() {
   const chartContainer = useRef<HTMLDivElement>(null)
   const [authStatus, setAuthStatus] = useState("pending")
   const [orderSuccess, setOrderSuccess] = useState<{ success: boolean, side: "buy" | "sell" }>({ success: false, side: "buy" })
+  const [currentPrice, setCurrentPrice] = useState<{ price: number, side: "buy" | "sell" }>({ price: 0, side: "buy" })
 
   const chartInstanceRef = useRef<IChartApi | null>(null);
 
@@ -41,7 +42,6 @@ export default function Trade() {
 
     // send auth request first to ws before connecting to any ws stream
     SignalingManager.getInstance().registerCallback("AUTH", (data: any) => {
-      console.log(data)
       setAuthStatus(data.success ? "authorized" : "unauthorized")
     }, "AUTH")
 
@@ -51,6 +51,28 @@ export default function Trade() {
       SignalingManager.getInstance().deRegisterCallback("AUTH", "AUTH")
     }
   }, []);
+
+
+  useEffect(() => {
+    if (authStatus !== "authorized") return;
+
+    const signalingManager = SignalingManager.getInstance();
+    const callbackId = "trade-chart";
+
+    signalingManager.registerCallback("TRADE_PUBLISH", (data: any) => {
+      setCurrentPrice({ price: data.trade.price, side: data.trade.side });
+    }, callbackId);
+
+    signalingManager.sendMessage({
+      type: "SUBSCRIBE",
+      params: ["trade@SOL_USDC"],
+    });
+
+    return () => {
+      signalingManager.sendMessage({ type: "UNSUBSCRIBE", params: ["trade@SOL_USDC"] });
+      signalingManager.deRegisterCallback("TRADE_PUBLISH", callbackId);
+    };
+  }, [authStatus]);
 
 
   useEffect(() => {
@@ -91,7 +113,7 @@ export default function Trade() {
     });
 
     // startime currently is one day ago. endTime is currently current time
-    getKlines("SOL_USDC", "1h", Math.floor((new Date().getTime() - 1000 * 60 * 60 * 24) / 1000), Math.floor(new Date().getTime() / 1000)).then((klines) => {
+    getKlines("SOL_USDC", "1m", Math.floor((new Date().getTime() - 1000 * 60 * 60 * 24) / 1000), Math.floor(new Date().getTime() / 1000)).then((klines) => {
       lineSeries.setData(klines.map(kline => ({
         time: Math.floor(new Date(kline.time).getTime() / 1000) as UTCTimestamp,
         open: kline.open,
@@ -173,6 +195,8 @@ export default function Trade() {
     }, 4000)
   }
 
+  console.log("tradetsx", currentPrice)
+
   return (
     <div className="flex h-screen flex-col bg-[#17191A]">
       <TradeNavbar />
@@ -181,10 +205,13 @@ export default function Trade() {
         <div className="flex min-w-0 flex-1 flex-col">
           <div className="flex items-start">
             <div className="mt-4 flex min-w-0 flex-1 flex-col pl-6 pt-4 pr-4">
-              <div className="mb-2 text-md font-mono text-zinc-200">
-                <p className="pt-2">
-                  Chart
-                </p>
+              <div className="mb-3 flex items-center gap-10 rounded-xl bg-[#1E1F23] px-5 py-3 font-mono">
+                <span className="text-[19px]  text-zinc-100">SOL<span className="text-zinc-400">/USD  </span> </span>
+                <span className={`text-lg ${currentPrice.side == "buy" ? 'text-green-400' : 'text-red-400'}`}>{currentPrice.price.toFixed(2)}</span>
+                <div className="flex flex-col leading-tight">
+                  <span className="text-[11px] uppercase tracking-wide text-zinc-500">24H Change</span>
+                  <span className="text-sm text-zinc-300">0%</span>
+                </div>
               </div>
               <div className="relative w-full overflow-hidden rounded-xl border border-white/10 bg-[#1E1F23] ">
                 <div ref={chartContainer} className="w-full" style={{ height: CHART_HEIGHT }} />
@@ -215,7 +242,7 @@ export default function Trade() {
           </div>
         </div>
         <div className="sticky top-0 shrink-0 self-start p-3">
-          <OrderEntry availableBalance="0" total="0" orderSuccessToast={(side) => {
+          <OrderEntry orderSuccessToast={(side) => {
             handleOrderSuccess(side)
           }} />
         </div>

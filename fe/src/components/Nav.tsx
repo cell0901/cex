@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom"
 import { useState } from "react";
-import { Check } from "lucide-react";
+import { Check, Play } from "lucide-react";
 import { DepositScreen } from "./DepositScreen";
 
 export const Navbar = () => {
@@ -17,17 +17,28 @@ export const Navbar = () => {
 }
 
 
-export default function DepositSuccessToast() {
+export function DepositSuccessToast() {
   return (
     <div className="fixed left-1/2 -translate-x-1/2 z-50">
-      <div className="flex items-center gap-2  text-white text-[13.5px] font-medium px-4 py-2.5 ">
+      <div className="animate-[toast-in_300ms_ease-out] flex items-center gap-2  text-white text-[13.5px] font-mono px-4 py-2.5 ">
         <Check size={14} className="text-green-400 shrink-0" />
         Deposit successful
       </div>
+      <style>{`
+  @keyframes toast-in {
+    from {
+      opacity: 0;
+      transform: translateY(-20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+`}</style>
     </div>
   );
 }
-
 
 export function TradeNavbar() {
   const navigate = useNavigate();
@@ -58,13 +69,13 @@ export function TradeNavbar() {
               onClick={() => {
                 setDepositCard(true)
               }}
-              className="text-center font-semibold rounded-lg focus:ring-green-200 focus:none focus:outline-none hover:opacity-90 disabled:opacity-80 disabled:hover:opacity-80 relative overflow-hidden h-[32px] text-sm px-3 py-1.5 mr-4 ">
+              className="text-center font-semibold rounded-lg focus:ring-green-200 cursor-pointer focus:none focus:outline-none hover:opacity-90 disabled:opacity-80 disabled:hover:opacity-80 relative overflow-hidden h-[32px] text-sm px-3 py-1.5 mr-4 ">
               <div className="absolute inset-0 bg-green-500 opacity-[16%]"></div>
               <div className="flex flex-row font-mono items-center justify-center gap-4"><p className="text-green-500">Deposit</p></div>
             </button>
             <button type="button" className="text-center font-semibold 
           rounded-lg focus:ring-green-200 focus:none 
-          focus:outline-none hover:opacity-90 disabled:opacity-80 disabled:hover:opacity-80 relative overflow-hidden h-[32px] 
+          focus:outline-none hover:opacity-90 disabled:opacity-80 disabled:hover:opacity-80 relative overflow-hidden h-[32px] cursor-pointer
           text-sm px-3 py-1.5 mr-4 bg-white "
               onClick={() => {
                 localStorage.removeItem('token')

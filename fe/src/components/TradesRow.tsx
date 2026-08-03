@@ -1,4 +1,4 @@
-import { scrollListClass, TRADES_SCROLL_HEIGHT_PX, type Trade } from "./orderbook";
+import { scrollListClass, TRADES_SCROLL_HEIGHT_PX, type Trade } from "./Orderbook";
 
 export function TradesRow({ price, quantity, side }: Trade) {
   const isBuy = side === "buy";

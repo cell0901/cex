@@ -64,6 +64,9 @@ export class SignalingManager {
           if (type == "TRADE_PUBLISH") {
             callback({ trade: parsedMessage.data })
           }
+          if (type == "BALANCE_UPDATE") {
+            callback({ balance: parsedMessage.data })
+          }
 
           // add balance thing later
         })

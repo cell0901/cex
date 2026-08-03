@@ -34,7 +34,7 @@ export function DepositScreen({ onClose, onCloseSuccess }: { onClose: () => void
               USDC
             </button>
           </div>
-          <p className="text-xs text-blue-400 mt-1">Available: {0} USDC</p>
+          <p className="text-xs text-blue-400 mt-1">USDC</p>
         </div>
 
         {/* Continue button */}

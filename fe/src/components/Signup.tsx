@@ -1,12 +1,14 @@
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { useSignupMutation } from "../hooks/useAuth";
+import { Eye, EyeOff } from "lucide-react";
 
 export function SignUp() {
   const navigate = useNavigate()
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
   const [card, setCard] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
   const { mutate } = useSignupMutation()
 
   return (
@@ -35,15 +37,23 @@ export function SignUp() {
                   className="w-full px-4 py-2 text-sm text-[#e5e5e5] bg-[#1c1c1c] border border-[#2a2a2a] rounded-[0.7rem] placeholder-[#858585] transition duration-200 focus:outline-none focus:border-[#444] focus:ring-[3px] focus:ring-white/[0.04]"
                 />
               </div>
-              <div>
+              <div className="relative">
                 <input
-                  type="text"
+                  type={showPassword ? "text" : "password"}
                   placeholder={"Password"}
                   onChange={(e) => {
                     setPassword(e.target.value)
                   }}
                   className="w-full px-4 py-2 text-sm text-[#e5e5e5] bg-[#1c1c1c] border border-[#2a2a2a] rounded-[0.7rem] placeholder-[#858585] transition duration-200 focus:outline-none focus:border-[#444] focus:ring-[3px] focus:ring-white/[0.04]"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center justify-center text-[#858585] hover:text-[#e5e5e5] transition-colors duration-200"
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
               </div>
             </div>
 

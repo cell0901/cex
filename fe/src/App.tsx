@@ -1,9 +1,9 @@
 import { BrowserRouter, Route, Routes } from "react-router-dom"
-import { SignUp } from "./components/signup"
-import { Login } from "./components/login"
-import Trade from "./components/trade"
+import { SignUp } from "./components/Signup"
+import { Login } from "./components/Login"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import LandingPage from "./components/Landing"
+import Trade from "./components/Trade"
 
 const queryClient = new QueryClient()
 

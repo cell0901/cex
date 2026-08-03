@@ -103,7 +103,7 @@ async function placeOrder(token: string, side: "buy" | "sell", price: number) {
       type: "market",
       symbol: SYMBOL,
       side,
-      price: price.toFixed(1), // toFixed() makes number to string
+      price: price.toFixed(2), // toFixed() makes number to string
       quantity: "1"
     })
   })
@@ -151,7 +151,7 @@ async function maintainSide(token: string, side: "buy" | "sell", midPrice: numbe
 }
 
 async function maybeCreateTrade(bidToken: string, askToken: string, midPrice: number) { // to create trades
-  if (Math.random() >= 0.25) return
+  if (Math.random() >= 0.10) return // 5% chance per cycle of trade happening
 
   // 25 % chance that this runs
   if (Math.random() < 0.5) {
@@ -170,7 +170,7 @@ async function main(bidToken: string, askToken: string) {
   await maintainSide(bidToken, "buy", midPrice, TOTAL_BIDS)
   await maintainSide(askToken, "sell", midPrice, TOTAL_ASKS)
 
-  await new Promise(resolve => setTimeout(resolve, 2000))
+  await new Promise(resolve => setTimeout(resolve, 3000))
   await main(bidToken, askToken)
 }
 
