@@ -43,10 +43,12 @@ orderRouter.post('/', authMiddleware, asyncHandler(async (req, res) => {
 )
 
 orderRouter.delete('/cancel-order', authMiddleware, asyncHandler(async (req, res) => {
+  console.log(req.body)
+
   const { data, success } = cancelOrderSchema.safeParse(req.body)
 
   if (!success) {
-    res.status(401).json({
+    res.status(400).json({
       message: "invalid arguments"
     })
     return

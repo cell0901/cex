@@ -107,7 +107,6 @@ authRouter.post('/onramp-base', authMiddleware, asyncHandler(async (req, res) =>
 
   const { data, success } = onRampSchema.safeParse(req.body)
 
-
   if (!success) {
     res.status(401).json({
       message: "wrong inputs"
