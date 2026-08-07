@@ -1,9 +1,9 @@
 import { RedisManager } from "../RedisManager";
 import type { MessageFromApi, OrderType } from "../types/messageFromApi"
 import { Orderbook, type Fill, type Order } from "./Orderbook";
-import { check } from "../..";
 import fs from "fs"
 
+export const BASE_ASSET = "SOL"
 
 interface UserBalance {
   [key: string]: { // here key is quoteAsset
@@ -33,7 +33,7 @@ export class Engine {
       this.balances = new Map(parsed.balances)
     } else { // means this is the first time  running the app
       this.orderbooks = []
-      this.orderbooks.push(check())
+      this.orderbooks.push(new Orderbook([], [], BASE_ASSET, "0", 0))
     }
 
     setInterval(() => {

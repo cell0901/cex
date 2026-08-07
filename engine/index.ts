@@ -3,19 +3,6 @@ import { Orderbook, type Order } from "./src/trade/Orderbook";
 import { Engine } from "./src/trade/Engine";
 
 
-export function check() {
-
-  let bids: Order[] = [
-
-  ]
-
-  let asks: Order[] = [
-
-  ]
-  let baseAsset = "SOL"
-  return new Orderbook(bids, asks, baseAsset, "0", 0)
-}
-
 async function main() {
   const engine = new Engine()
   const redisClient = createClient()
