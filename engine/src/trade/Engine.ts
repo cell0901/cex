@@ -2,6 +2,7 @@ import { RedisManager } from "../RedisManager";
 import type { MessageFromApi, OrderType } from "../types/messageFromApi"
 import { Orderbook, type Fill, type Order } from "./Orderbook";
 import { check } from "../..";
+import fs from "fs"
 
 
 interface UserBalance {
@@ -16,8 +17,36 @@ export class Engine {
 
   constructor() {
     // add snapshot logic later
-    this.orderbooks = []
-    this.orderbooks.push(check())
+    // first check whether there is snapshot then reach the orderbook state
+
+    let snapshot;
+    try {
+      snapshot = fs.readFileSync("./snapshot.json")
+    } catch (e) {
+      console.log("no snapshot found")
+    }
+
+    if (snapshot) { // means this is recovery state. replay all the 2 mins orders from the redis stream to reach the state just before crashing
+      // {orderbooks: [], balances: }
+      const parsed = JSON.parse(snapshot.toString()); // this will have snapshot of all or single orderbook
+      this.orderbooks = parsed.orderbooks.map(o => new Orderbook(o.bids, o.asks, o.baseAsset, o.currentPrice, o.lastTradeId));
+      this.balances = new Map(parsed.balances)
+    } else { // means this is the first time  running the app
+      this.orderbooks = []
+      this.orderbooks.push(check())
+    }
+
+    setInterval(() => {
+      this.saveSnapshot()
+    }, 1000 * 60 * 2) // every 2 min
+  }
+
+  saveSnapshot() {
+    const snapshot = {
+      orderbooks: this.orderbooks.map(o => o.getSnapshot()), // getSnaphost function to only get bids asks and other needed things while creating new orderbook 
+      balances: Array.from(this.balances) // since balances are in map
+    }
+    fs.writeFileSync('./snapshot.json', JSON.stringify(snapshot))
   }
 
   process(message: MessageFromApi, clientId: string) { // public by default

@@ -30,7 +30,16 @@ export class Orderbook {
     this.asks = asks
     this.baseAsset = baseAsset
     this.currentPrice = currentPrice // this will be last trade price
-    this.lastTradeId = lastTradeId || 0
+    this.lastTradeId = lastTradeId || 0 // for snapshot purpose
+  }
+  getSnapshot() {
+    return {
+      bids: this.bids,
+      asks: this.asks,
+      baseAsset: this.baseAsset,
+      currentPrice: this.currentPrice,
+      lastTradeId: this.lastTradeId
+    }
   }
 
   getTicker() {
