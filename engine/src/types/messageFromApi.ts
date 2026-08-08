@@ -20,6 +20,7 @@ export type MessageFromApi = {
     price: string,
     quantity: string,
     userId: string // to store balances in memory 
+    orderId: string
   }
 } | {
   type: typeof CANCEL_ORDER,

@@ -10,6 +10,7 @@ export type MessageToEngine = {
     price: string,
     quantity: string,
     userId: string // to store balances in memory 
+    orderId: string
   }
 } | {
   type: "CANCEL_ORDER",

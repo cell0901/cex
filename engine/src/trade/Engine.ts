@@ -31,6 +31,19 @@ export class Engine {
       const parsed = JSON.parse(snapshot.toString()); // this will have snapshot of all or single orderbook
       this.orderbooks = parsed.orderbooks.map(o => new Orderbook(o.bids, o.asks, o.baseAsset, o.currentPrice, o.lastTradeId));
       this.balances = new Map(parsed.balances)
+      // run the events again after the last stream id 
+      if (parsed.lastStreamMessageId) { // runs the events if there exists any. since if there was not lastStreamMessageId. that means the 
+        // no order came after snapshot. Or the engine never got any first Order
+        let events: any[] = []
+        RedisManager.getInstance().getStreamReplayEvents(parsed.lastStreamMessageId).then((data) => {
+          events = data
+        })
+
+        for (const event of events) {
+          const message = JSON.parse(event.message.data)
+          this.process(message.msg, message.clientId, { replay: true })
+        }
+      }
     } else { // means this is the first time  running the app
       this.orderbooks = []
       this.orderbooks.push(new Orderbook([], [], BASE_ASSET, "0", 0))
@@ -41,42 +54,57 @@ export class Engine {
     }, 1000 * 60 * 2) // every 2 min
   }
 
-  saveSnapshot() {
+  async saveSnapshot() {
     const snapshot = {
       orderbooks: this.orderbooks.map(o => o.getSnapshot()), // getSnaphost function to only get bids asks and other needed things while creating new orderbook 
-      balances: Array.from(this.balances) // since balances are in map
+      balances: Array.from(this.balances), // since balances are in map
+      lastStreamMessageId: await RedisManager.getInstance().getLastStreamMesssageId()
     }
     fs.writeFileSync('./snapshot.json', JSON.stringify(snapshot))
   }
 
-  process(message: MessageFromApi, clientId: string) { // public by default
+  process(message: MessageFromApi, clientId: string, options?: { replay?: boolean }) { // public by default
     switch (message.type) {
 
       case "CREATE_ORDER":
         try {
           this.preventSelfTrade(message.data.symbol, message.data.side, message.data.price, message.data.userId)
 
-          const { fills, executedQuantity, orderId } = this.createOrder(message.data.symbol, message.data.type, message.data.side, message.data.price, message.data.quantity, message.data.userId)
+          const { fills, executedQuantity } = this.createOrder(
+            message.data.symbol,
+            message.data.type,
+            message.data.side,
+            message.data.price,
+            message.data.quantity,
+            message.data.userId,
+            message.data.orderId,
+            options?.replay
+          )
 
-          RedisManager.getInstance().sendToApi(clientId, {
-            type: "ORDER_PLACED",
-            payload: {
-              orderId: orderId,
-              executedQuantity,
-              fills
-            }
-          })
+          if (!options?.replay) { // if replay is true dont run this
+            RedisManager.getInstance().sendToApi(clientId, {
+              type: "ORDER_PLACED",
+              payload: {
+                orderId: message.data.orderId,
+                executedQuantity,
+                fills
+              }
+            })
+          }
+
           // send reponse to redis to api on succesfull order creation
         } catch (e) { // send api message with 0 fills and 0 executed quantity
           console.log(e) // clientId is something our api request subscribed to and whenever something with this clientId comes. it gets api
-          RedisManager.getInstance().sendToApi(clientId, {
-            type: "ORDER_CANCELLED",
-            payload: {
-              orderId: "",
-              executedQuantity: 0,
-              remainingQuantity: 0
-            }
-          })
+          if (!options?.replay) {
+            RedisManager.getInstance().sendToApi(clientId, {
+              type: "ORDER_CANCELLED",
+              payload: {
+                orderId: "",
+                executedQuantity: 0,
+                remainingQuantity: 0
+              }
+            })
+          }
         }
         break;
       case "CANCEL_ORDER":
@@ -89,14 +117,16 @@ export class Engine {
 
           let executed = this.cancelOrder(message.data.orderId, cancelOrderbook, message.data.symbol)
 
-          RedisManager.getInstance().sendToApi(clientId, {
-            type: "ORDER_CANCELLED",
-            payload: {
-              orderId: message.data.orderId,
-              executedQuantity: executed,
-              remainingQuantity: 0
-            }
-          })
+          if (!options?.replay) {
+            RedisManager.getInstance().sendToApi(clientId, {
+              type: "ORDER_CANCELLED",
+              payload: {
+                orderId: message.data.orderId,
+                executedQuantity: executed,
+                remainingQuantity: 0
+              }
+            })
+          }
         } catch (e) {
           console.log(e)
         }
@@ -155,28 +185,32 @@ export class Engine {
       case "ON_RAMP":
         this.onRamp(message.data.userId, Number(message.data.amount))
 
-        RedisManager.getInstance().sendToApi(clientId, {
-          type: "ON_RAMP",
-          payload: {
-            message: "onramp succesfull"
-          }
-        })
+        if (!options?.replay) {
+          RedisManager.getInstance().sendToApi(clientId, {
+            type: "ON_RAMP",
+            payload: {
+              message: "onramp succesfull"
+            }
+          })
+        }
         break;
       case "ON_RAMP_BASE":
         this.onRampBase(message.data.userId, Number(message.data.amount))
 
-        RedisManager.getInstance().sendToApi(clientId, {
-          type: "ON_RAMP_BASE",
-          payload: {
-            message: "onramp succesfull for base"
-          }
-        })
+        if (!options?.replay) {
+          RedisManager.getInstance().sendToApi(clientId, {
+            type: "ON_RAMP_BASE",
+            payload: {
+              message: "onramp succesfull for base"
+            }
+          })
+        }
 
         break;
     }
   }
 
-  createOrder(symbol: string, type: OrderType, side: "buy" | "sell", price: string, quantity: string, userId: string) {
+  createOrder(symbol: string, type: OrderType, side: "buy" | "sell", price: string, quantity: string, userId: string, orderId: string, replay?: boolean) {
     // check balances
 
     const orderbook = this.orderbooks.find(o => o.getTicker() === symbol) // this will return the instance of orderbook class with this ticker
@@ -227,7 +261,7 @@ export class Engine {
       quantity: Number(quantity),
       side,
       filled: 0,
-      orderId: Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15),
+      orderId: orderId
     }
 
     const { fills, executedQuantity } = orderbook.addOrder(order, type)
@@ -247,7 +281,7 @@ export class Engine {
     this.publishWsDepth(fills, price, symbol, orderbook, side)
     this.publishWsTrades(fills, symbol, userId)
     this.publishWsBalance(userId)
-    return { fills, executedQuantity, orderId: order.orderId }
+    return { fills, executedQuantity }
   }
 
   checkAndLockBalance(userId: string, price: string, quantity: string, orderbook: Orderbook, side: "buy" | "sell") {

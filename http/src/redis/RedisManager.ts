@@ -22,14 +22,27 @@ export class RedisManager { // this RedisManager will be used to connect to http
   }
 
   send(msg: MessageToEngine) {
-    return new Promise<fromEngine>((resolve) => {
-      let clientId = this.generateRandomClientId()
-      this.client.subscribe(clientId, (message) => { //this tells redis if u every send message to this pub call this callback fundtion
-        this.client.unsubscribe(clientId)
-        resolve((JSON.parse(message))) // this Promise will resolve after we gets the message
+    if (msg.type == "CREATE_ORDER" || msg.type == "CANCEL_ORDER" || msg.type == "ON_RAMP" || msg.type == "ON_RAMP_BASE") {
+      return new Promise<fromEngine>((resolve) => {
+        let clientId = this.generateRandomClientId()
+        this.client.subscribe(clientId, (message) => { //this tells redis if u every send message to this pub call this callback fundtion
+          this.client.unsubscribe(clientId)
+          resolve((JSON.parse(message))) // this Promise will resolve after we gets the message
+        })
+        this.client.xAdd('order:stream', "*", {
+          data: JSON.stringify({ clientId: clientId, msg })
+        })
       })
-      this.client.lPush('order', JSON.stringify({ clientId: clientId, msg }))
-    })
+    } else {
+      return new Promise<fromEngine>((resolve) => {
+        let clientId = this.generateRandomClientId()
+        this.client.subscribe(clientId, (message) => { //this tells redis if u every send message to this pub call this callback fundtion
+          this.client.unsubscribe(clientId)
+          resolve((JSON.parse(message))) // this Promise will resolve after we gets the message
+        })
+        this.client.lPush('order', JSON.stringify({ clientId: clientId, msg }))
+      })
+    }
   }
 
 

@@ -34,7 +34,9 @@ orderRouter.post('/', authMiddleware, asyncHandler(async (req, res) => {
       side: data.side,
       price: data.price,
       quantity: data.quantity,
-      userId: req.userId
+      userId: req.userId,
+      orderId: Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15),
+      // generating orderId here so CANCEL_ORDER doesnt stops working in recovery state of engine
     }
   })
 
