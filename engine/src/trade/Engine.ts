@@ -12,56 +12,68 @@ interface UserBalance {
   }
 }
 export class Engine {
-  private orderbooks: Orderbook[] // array of orderbook(class) with methods to make it easy
+  private orderbooks: Orderbook[] = [] // array of orderbook(class) with methods to make it easy
   private balances: Map<string, UserBalance> = new Map() // key will be useId
+  private lastAppliedStreamId: string = "0-0"
 
   constructor() {
-    // add snapshot logic later
-    // first check whether there is snapshot then reach the orderbook state
-
-    let snapshot;
-    try {
-      snapshot = fs.readFileSync("./snapshot.json")
-    } catch (e) {
-      console.log("no snapshot found")
-    }
-
-    if (snapshot) { // means this is recovery state. replay all the 2 mins orders from the redis stream to reach the state just before crashing
-      // {orderbooks: [], balances: }
-      const parsed = JSON.parse(snapshot.toString()); // this will have snapshot of all or single orderbook
-      this.orderbooks = parsed.orderbooks.map(o => new Orderbook(o.bids, o.asks, o.baseAsset, o.currentPrice, o.lastTradeId));
-      this.balances = new Map(parsed.balances)
-      // run the events again after the last stream id 
-      if (parsed.lastStreamMessageId) { // runs the events if there exists any. since if there was not lastStreamMessageId. that means the 
-        // no order came after snapshot. Or the engine never got any first Order
-        let events: any[] = []
-        RedisManager.getInstance().getStreamReplayEvents(parsed.lastStreamMessageId).then((data) => {
-          events = data
-        })
-
-        for (const event of events) {
-          const message = JSON.parse(event.message.data)
-          this.process(message.msg, message.clientId, { replay: true })
-        }
-      }
-    } else { // means this is the first time  running the app
-      this.orderbooks = []
-      this.orderbooks.push(new Orderbook([], [], BASE_ASSET, "0", 0))
-    }
-
     setInterval(() => {
       this.saveSnapshot()
     }, 1000 * 60 * 2) // every 2 min
+  }
+
+  setLastAppliedStreamId(id: string) {
+    this.lastAppliedStreamId = id
+  }
+  getLastAppliedStreamId() {
+    return this.lastAppliedStreamId
+  }
+
+  async recoverFromSnapshot() {
+    try {
+      // 1. fetch the last snapshot
+      const parsed = JSON.parse(fs.readFileSync('./snapshot.json', "utf8"))
+
+      // 2. put that state in memory
+      this.orderbooks = parsed.orderbooks.map(o => new Orderbook(o.bids, o.asks, o.baseAsset, o.currentPrice, o.lastTradeId))
+      this.balances = new Map(parsed.balances)
+
+      this.lastAppliedStreamId = parsed.lastStreamMessageId ?? "0-0" // if we wouldnt set this and there were no replay events after 
+      // then this would be 0-0. since we set this 0-0 in class init
+
+      // get all the messages after last message id in snapshot
+      const events = await RedisManager.getInstance().getStreamReplayEvents(this.lastAppliedStreamId)
+
+      // process those each messages in engine
+      for (const event of events) {
+        const message = JSON.parse(event.message.data!)
+        this.process(message.msg, message.clientId, { replay: true })
+        this.lastAppliedStreamId = event.id
+      }
+    } catch (error: any) { // means this is first time or the snapshot file doesnt exist
+
+      if (error.code == "ENOENT") { // file not found
+        this.orderbooks = []
+        this.orderbooks.push(new Orderbook([], [], BASE_ASSET, "0", 0))
+      } else {
+        throw new Error("error while reading snapshot.json. Json is invalid or Redis is down")
+      }
+    }
   }
 
   async saveSnapshot() {
     const snapshot = {
       orderbooks: this.orderbooks.map(o => o.getSnapshot()), // getSnaphost function to only get bids asks and other needed things while creating new orderbook 
       balances: Array.from(this.balances), // since balances are in map
-      lastStreamMessageId: await RedisManager.getInstance().getLastStreamMesssageId()
+      lastStreamMessageId: this.lastAppliedStreamId
     }
     fs.writeFileSync('./snapshot.json', JSON.stringify(snapshot))
+
+    // trim the stream after succesfull snapshot
+    void RedisManager.getInstance().trimStream(snapshot.lastStreamMessageId).catch((e) => console.error) // fire this promise but dont wait for it
   }
+
+
 
   process(message: MessageFromApi, clientId: string, options?: { replay?: boolean }) { // public by default
     switch (message.type) {
@@ -115,7 +127,7 @@ export class Engine {
             throw new Error("orderbook doesnt exist")
           }
 
-          let executed = this.cancelOrder(message.data.orderId, cancelOrderbook, message.data.symbol)
+          let executed = this.cancelOrder(message.data.orderId, cancelOrderbook, message.data.symbol, options?.replay)
 
           if (!options?.replay) {
             RedisManager.getInstance().sendToApi(clientId, {
@@ -205,20 +217,17 @@ export class Engine {
             }
           })
         }
-
         break;
     }
   }
 
   createOrder(symbol: string, type: OrderType, side: "buy" | "sell", price: string, quantity: string, userId: string, orderId: string, replay?: boolean) {
     // check balances
-
     const orderbook = this.orderbooks.find(o => o.getTicker() === symbol) // this will return the instance of orderbook class with this ticker
 
     if (!orderbook) {
       throw new Error("no orderbook found")
     }
-
 
     // this.balances.set("sometuserID", {
     //   ["SOL"]: {
@@ -241,7 +250,6 @@ export class Engine {
     // }
 
     // this.orderbooks.find(o => o.getTicker() === symbol)?.bids.push(ask)
-
 
     const temp = this.balances.get(userId)
 
@@ -275,12 +283,15 @@ export class Engine {
 
     // then some worker for update db balances. db trades. publistradestoWs. publicdepthtows
 
-    this.createDbTrades(fills, symbol)
-    // this.updateDbOrder(order, executedQuantity, symbol)
+    if (!replay) {
+      this.createDbTrades(fills, symbol)
+      // this.updateDbOrder(order, executedQuantity, symbol)
 
-    this.publishWsDepth(fills, price, symbol, orderbook, side)
-    this.publishWsTrades(fills, symbol, userId)
-    this.publishWsBalance(userId)
+      this.publishWsDepth(fills, price, symbol, orderbook, side)
+      this.publishWsTrades(fills, symbol, userId)
+      this.publishWsBalance(userId)
+    }
+
     return { fills, executedQuantity }
   }
 
@@ -383,7 +394,6 @@ export class Engine {
         }
       })
     })
-
   }
 
   updateDbOrder(order: Order, executedQuantity: number, symbol: string) {
@@ -397,7 +407,7 @@ export class Engine {
     })
   }
 
-  cancelOrder(orderId: string, cancelOrderbook: Orderbook, symbol: string) {
+  cancelOrder(orderId: string, cancelOrderbook: Orderbook, symbol: string, replay?: boolean) {
 
     // consdering orderbook exists here
     // order in the orderbook using the orderid
@@ -417,10 +427,10 @@ export class Engine {
       this.balances.get(cancelOrder.userId)![cancelOrderbook.quoteAsset]!.available += leftQtyPrice
       this.balances.get(cancelOrder.userId)![cancelOrderbook.quoteAsset]!.locked -= leftQtyPrice
 
-      if (price) {
+      if (price && !replay) {
         this.sendWsDepthUpdateOnCancel(price.toString(), symbol)
       }
-      this.publishWsBalance(cancelOrder.userId)
+      if (!replay) this.publishWsBalance(cancelOrder.userId)
 
       return cancelOrder.filled // returning executedQuantity back to the apoi
     } else {
@@ -430,10 +440,10 @@ export class Engine {
       this.balances.get(cancelOrder.userId)![cancelOrderbook.baseAsset]!.available += leftQty
       this.balances.get(cancelOrder.userId)![cancelOrderbook.baseAsset]!.locked -= leftQty
 
-      if (price) {
+      if (price && !replay) {
         this.sendWsDepthUpdateOnCancel(price.toString(), symbol)
       }
-      this.publishWsBalance(cancelOrder.userId)
+      if (!replay) this.publishWsBalance(cancelOrder.userId)
       return cancelOrder.filled
     }
 

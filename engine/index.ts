@@ -1,5 +1,6 @@
 import { createClient } from "redis";
 import { Engine } from "./src/trade/Engine";
+import { redis } from "bun";
 
 
 const engine = new Engine()
@@ -21,24 +22,29 @@ async function readStream() {
   const redistClient = createClient()
   await redistClient.connect()
 
-  await redistClient.xGroupCreate("order:stream", "engine-group", "0", { MKSTREAM: true }).catch(() => { }) // mkstream true means  create a stream if doesnt exist
+  let lastId = engine.getLastAppliedStreamId() ?? "0-0" // 0-0 means start from ids greater than 0-0 means from very beggining
+
 
   while (true) {
-    const res = await redistClient.xReadGroup("engine-group", "engine-1", {
+    const res = await redistClient.xRead({
       key: "order:stream",
-      id: ">" // give all new messages that have not been delivered to any other consumer group
-    })
+      id: lastId // shouldnt use "$" thiis skips the current cursor and start with next message
+    }, { BLOCK: 0 }) // this will stop the the process here and will stop hitting cpu again in every loop if no stream message
 
     if (!res) continue; // if res is null(means no order made) this condition true then continue the loop from start not run below code
 
     for (const msg of res[0]?.messages) {
       const message = JSON.parse(msg.message.data)
       engine.process(message.msg, message.clientId)
-      await redistClient.xAck("order:stream", "engine-group", msg.id)
+      engine.setLastAppliedStreamId(msg.id)
+      lastId = msg.id
     }
   }
 }
 
-
-main()
-
+async function bootstrap() {
+  await engine.recoverFromSnapshot();
+  void main(); // fire and forget. 
+  void readStream();
+}
+bootstrap()
