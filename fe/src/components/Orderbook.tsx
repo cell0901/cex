@@ -230,19 +230,16 @@ export function Orderbook() {
 
     }, "depth@SOL_USDC")
 
-    SignalingManager.getInstance().sendMessage({ type: "SUBSCRIBE", params: ["depth@SOL_USDC"] })
 
 
     SignalingManager.getInstance().registerCallback("TRADE_PUBLISH", (data: any) => {
       setTrades((prev) => [{ price: data.trade.price, quantity: data.trade.quantity, side: data.trade.side }, ...prev])
       setCurrentPrice({ price: data.trade.price, side: data.trade.side })
     }, "trade@SOL_USDC");
-
     SignalingManager.getInstance().sendMessage({
       type: "SUBSCRIBE",
-      params: ["trade@SOL_USDC"],
+      params: ["depth@SOL_USDC", "trade@SOL_USDC"],
     });
-
 
     return () => {
       SignalingManager.getInstance().sendMessage({ type: "UNSUBSCRIBE", params: ["depth@SOL_USDC"] })
