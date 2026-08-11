@@ -1,6 +1,5 @@
 import { createClient } from "redis";
 import { Engine } from "./src/trade/Engine";
-import { redis } from "bun";
 
 
 const engine = new Engine()

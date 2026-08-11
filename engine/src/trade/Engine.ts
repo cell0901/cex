@@ -11,15 +11,39 @@ interface UserBalance {
     locked: number
   }
 }
+
+interface EngineOptions {
+  snapshotPath?: string,
+  streamKey?: string,
+  enableSnapshotTimer?: boolean
+}
+
+interface EngineSnapshot {
+  orderbooks: ReturnType<Orderbook["getSnapshot"]>[],
+  balances: [string, UserBalance][],
+  lastStreamMessageId?: string
+}
+
 export class Engine {
   private orderbooks: Orderbook[] = [] // array of orderbook(class) with methods to make it easy
   private balances: Map<string, UserBalance> = new Map() // key will be useId
   private lastAppliedStreamId: string = "0-0"
+  private snapshotPath: string
+  private streamKey: string
 
-  constructor() {
-    setInterval(() => {
-      this.saveSnapshot()
-    }, 1000 * 60 * 2) // every 2 min
+  constructor({
+    snapshotPath = "./snapshot.json", // defaults
+    streamKey = "order:stream",
+    enableSnapshotTimer = true
+  }: EngineOptions = {}) {
+    this.snapshotPath = snapshotPath
+    this.streamKey = streamKey
+
+    if (enableSnapshotTimer) {
+      setInterval(() => {
+        this.saveSnapshot()
+      }, 1000 * 60 * 2) // every 2 min
+    }
   }
 
   setLastAppliedStreamId(id: string) {
@@ -32,7 +56,7 @@ export class Engine {
   async recoverFromSnapshot() {
     try {
       // 1. fetch the last snapshot
-      const parsed = JSON.parse(fs.readFileSync('./snapshot.json', "utf8"))
+      const parsed = JSON.parse(fs.readFileSync(this.snapshotPath, "utf8")) as EngineSnapshot
 
       // 2. put that state in memory
       this.orderbooks = parsed.orderbooks.map(o => new Orderbook(o.bids, o.asks, o.baseAsset, o.currentPrice, o.lastTradeId))
@@ -42,7 +66,7 @@ export class Engine {
       // then this would be 0-0. since we set this 0-0 in class init
 
       // get all the messages after last message id in snapshot
-      const events = await RedisManager.getInstance().getStreamReplayEvents(this.lastAppliedStreamId)
+      const events = await RedisManager.getInstance().getStreamReplayEvents(this.lastAppliedStreamId, this.streamKey)
 
       // process those each messages in engine
       for (const event of events) {
@@ -67,10 +91,20 @@ export class Engine {
       balances: Array.from(this.balances), // since balances are in map
       lastStreamMessageId: this.lastAppliedStreamId
     }
-    fs.writeFileSync('./snapshot.json', JSON.stringify(snapshot))
+    fs.writeFileSync(this.snapshotPath, JSON.stringify(snapshot))
 
     // trim the stream after succesfull snapshot
-    void RedisManager.getInstance().trimStream(snapshot.lastStreamMessageId).catch((e) => console.error) // fire this promise but dont wait for it
+    void RedisManager.getInstance()
+      .trimStream(snapshot.lastStreamMessageId, this.streamKey)
+      .catch((error) => console.error(error)) // fire this promise but dont wait for it
+  }
+
+  getStateForTest() { // gets the expected state for the snapshot recovery test
+    return JSON.parse(JSON.stringify({
+      orderbooks: this.orderbooks.map(o => o.getSnapshot()),
+      balances: Array.from(this.balances),
+      lastStreamMessageId: this.lastAppliedStreamId
+    }))
   }
 
 
@@ -605,4 +639,3 @@ export class Engine {
     }
   }
 }
-

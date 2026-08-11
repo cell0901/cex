@@ -36,13 +36,13 @@ export class RedisManager {
     this.client.publish(channel, JSON.stringify(message))
   }
 
-  async getStreamReplayEvents(lastStreamMessageId: string) {
-    const res = await this.client.xRange("order:stream", `(${lastStreamMessageId}`, "+") // + means get all messages to end of queue (newest)
+  async getStreamReplayEvents(lastStreamMessageId: string, streamKey = "order:stream") {
+    const res = await this.client.xRange(streamKey, `(${lastStreamMessageId}`, "+") // + means get all messages to end of queue (newest)
     return res
   }
 
-  async trimStream(lastStreamMessageId: string) {
-    await this.client.xTrim("order:stream", "MINID", lastStreamMessageId, {
+  async trimStream(lastStreamMessageId: string, streamKey = "order:stream") {
+    await this.client.xTrim(streamKey, "MINID", lastStreamMessageId, {
       strategyModifier: "~" //~ apprx is faster
     })
   }
