@@ -1,4 +1,4 @@
-# CEX — educational exchange prototype
+# Centralized Exchange (CEX) 
 
 A small, full-stack cryptocurrency-exchange prototype built around an in-memory matching engine. It supports authenticated order placement and cancellation, live order-book and trade updates, candlestick data, a frontend trading screen, a market-making simulator, and snapshot-based engine recovery.
 
