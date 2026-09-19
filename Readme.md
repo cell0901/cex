@@ -6,9 +6,12 @@ A small, full-stack cryptocurrency-exchange prototype built around an in-memory 
 ![CEX architecture](./assets/architecture.png)
 
 ## Preview
-![CEX preview](./assets/exui.png)
-![CEX preview](./assets/trade.png)
-![CEX preview](./assets/position.png)
+
+![exui](./assets/exui.png)
+
+![trade](./assets/trade.png)
+
+![position](./assets/position.png)
 
 
 ## Services
