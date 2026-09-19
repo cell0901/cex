@@ -5,6 +5,12 @@ A small, full-stack cryptocurrency-exchange prototype built around an in-memory 
 ## Architecture
 ![CEX architecture](./assets/architecture.png)
 
+## Preview
+![CEX preview](./assets/exui.png)
+![CEX preview](./assets/trade.png)
+![CEX preview](./assets/position.png)
+
+
 ## Services
 
 - *Frontend* — `fe/` — Port `3001`
@@ -46,15 +52,49 @@ A small, full-stack cryptocurrency-exchange prototype built around an in-memory 
 - A two-bot simulator that maintains 15 bids and 15 asks and occasionally creates trades.
 - A recovery integration test that compares live state with recovered state.
 
-## Prerequisites
+## Run with Docker
+
+- Docker and Docker Compose
+
+One command starts Redis, PostgreSQL, TimescaleDB, the matching engine, API, WebSocket gateway, database worker, and frontend:
+
+```bash
+export JWT_SECRET="choose-a-local-development-secret"
+docker compose -f docker/docker-compose.yml up --build
+```
+
+Open <http://localhost:3001>. The API is exposed on port `3000`, the WebSocket gateway on `8080`, and the data services on their usual local ports.
+
+The simulator is deliberately optional. Start it with:
+
+```bash
+docker compose -f docker/docker-compose.yml --profile simulation up simulate
+```
+
+Useful commands:
+
+```bash
+# Follow one service's logs
+docker compose -f docker/docker-compose.yml logs -f engine
+
+# Stop containers while keeping Redis, database, and engine-snapshot volumes
+docker compose -f docker/docker-compose.yml down
+
+# Remove containers and all local project data (destructive)
+docker compose -f docker/docker-compose.yml down -v
+```
+
+## Run manually
+
+### Prerequisites
 
 - [Bun](https://bun.sh/)
 - Docker and Docker Compose
 
-The repository uses local Redis, PostgreSQL, and TimescaleDB. Start them first:
+Start only the local Redis, PostgreSQL, and TimescaleDB dependencies:
 
 ```bash
-docker compose -f docker/docker-compose.yml up -d
+docker compose -f docker/docker-compose.yml up -d redis postgres timescaledb
 ```
 
 Create `http/.env`:
