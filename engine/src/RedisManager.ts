@@ -9,7 +9,7 @@ export class RedisManager {
   private client: RedisClientType
 
   constructor() {
-    this.client = createClient()
+    this.client = createClient({ url: process.env.REDIS_URL ?? "redis://localhost:6379" })
     this.client.connect()
   }
 
@@ -27,12 +27,11 @@ export class RedisManager {
   }
 
   pushMessage(message: DbMessage) { // push message to db 
-    console.log("db publish from engine", message)
     this.client.lPush("db_publish", JSON.stringify(message))
   }
 
   publishMessage(channel: string, message: wsMessage) { // for 
-    console.log("from engine", channel, "message", message)
+    // console.log("from engine", channel, "message", message)
     this.client.publish(channel, JSON.stringify(message))
   }
 
@@ -42,6 +41,7 @@ export class RedisManager {
   }
 
   async trimStream(lastStreamMessageId: string, streamKey = "order:stream") {
+    console.log("trim stream ran");
     await this.client.xTrim(streamKey, "MINID", lastStreamMessageId, {
       strategyModifier: "~" //~ apprx is faster
     })

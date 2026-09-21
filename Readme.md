@@ -8,9 +8,7 @@ A small, full-stack cryptocurrency-exchange prototype built around an in-memory 
 ## Preview
 
 ![exui](./assets/exui.png)
-
 ![trade](./assets/trade.png)
-
 ![position](./assets/position.png)
 
 

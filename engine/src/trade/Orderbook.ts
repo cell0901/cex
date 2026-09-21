@@ -114,7 +114,7 @@ export class Orderbook {
     let fills: Fill[] = []
     let executedQuantity = 0;
 
-    // For bids, highest price first:
+    // For bids, lowest price first:
     this.asks.sort((a, b) => a.price - b.price);
 
     for (const [i, ask] of this.asks.entries()) { // this should sort price lowesst to highest
@@ -252,8 +252,7 @@ export class Orderbook {
       x => [x[0], x[1]]// price, quantity
     )
 
-    console.log("bids in getDepth", bids)
-    console.log("asks in getDepth", asks)
+    // console.log("asks in getDepth", asks)
     return {
       bids,
       asks

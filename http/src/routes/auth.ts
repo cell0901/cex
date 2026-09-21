@@ -86,7 +86,6 @@ authRouter.post('/onramp', authMiddleware, asyncHandler(async (req, res) => {
     return
   }
   console.log("inside onramp route")
-  console.log(data)
 
   const response = await RedisManager.getInstance().send({
     type: "ON_RAMP",

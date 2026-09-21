@@ -17,7 +17,7 @@ export const orderRouter = Router()
 orderRouter.post('/', authMiddleware, asyncHandler(async (req, res) => {
   // create order
   const { data, success } = orderSchema.safeParse(req.body)
-  console.log("userid", req.userId)
+  // console.log("userid", req.userId)
 
   if (!success) {
     res.status(401).json({
@@ -45,8 +45,6 @@ orderRouter.post('/', authMiddleware, asyncHandler(async (req, res) => {
 )
 
 orderRouter.delete('/cancel-order', authMiddleware, asyncHandler(async (req, res) => {
-  console.log(req.body)
-
   const { data, success } = cancelOrderSchema.safeParse(req.body)
 
   if (!success) {

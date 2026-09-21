@@ -4,11 +4,11 @@ import type { DbMessage } from "./types";
 
 
 const pgClient = new Client({
-  user: 'postgres',
-  host: "localhost",
-  database: "postgres", //  container name
-  password: "postgrespass",
-  port: 5433
+  user: process.env.TIMESCALE_USER ?? 'postgres',
+  host: process.env.TIMESCALE_HOST ?? "localhost",
+  database: process.env.TIMESCALE_DATABASE ?? "postgres",
+  password: process.env.TIMESCALE_PASSWORD ?? "postgrespass",
+  port: Number(process.env.TIMESCALE_PORT ?? 5433)
 })
 
 await pgClient.connect()
@@ -127,7 +127,7 @@ async function initDb() {
 initDb().catch(console.error)
 
 async function dbProcessor() {
-  const redisClient = createClient()
+  const redisClient = createClient({ url: process.env.REDIS_URL ?? "redis://localhost:6379" })
   await redisClient.connect()
 
   while (true) {
@@ -135,7 +135,6 @@ async function dbProcessor() {
 
     let dbMessage: DbMessage = JSON.parse(a?.element!)
 
-    console.log(dbMessage)
 
     if (dbMessage.type == "TRADE_ADDED") {
       // insert into timescale db with raw query
@@ -151,7 +150,7 @@ async function dbProcessor() {
       const values = [timestamp, market, price, quantity, currecy_code]
       await pgClient.query(query, values)
 
-      console.log("after inserting data")
+      // console.log("after inserting data")
     }
     // todo: also add orders published to orders table
   }

@@ -4,11 +4,11 @@ import { Client } from "pg";
 
 
 const pgClient = new Client({
-  user: 'postgres',
-  host: "localhost",
-  database: "postgres", //  container name
-  password: "postgrespass",
-  port: 5433
+  user: process.env.TIMESCALE_USER ?? 'postgres',
+  host: process.env.TIMESCALE_HOST ?? "localhost",
+  database: process.env.TIMESCALE_DATABASE ?? "postgres",
+  password: process.env.TIMESCALE_PASSWORD ?? "postgrespass",
+  port: Number(process.env.TIMESCALE_PORT ?? 5433)
 })
 
 pgClient.connect()

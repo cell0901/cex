@@ -49,7 +49,6 @@ export class User {
     if (incoming.type == "SUBSCRIBE") {
       for (const s of incoming.params) {
         const channel = s.startsWith("balance@") ? `balance@${this.id}` : s;
-        console.log("inside subscribe", channel)
         await SubscriptionManager.getInstance().subscribe(this.connectionId, channel);
       }
     }
@@ -66,7 +65,6 @@ export class User {
 
 
   emit(message: OutgoingMessage) {
-    console.log("acutally did the emit", message)
     this.ws.send(JSON.stringify(message))
   }
 

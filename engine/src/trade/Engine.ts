@@ -32,7 +32,7 @@ export class Engine {
   private streamKey: string
 
   constructor({
-    snapshotPath = "./snapshot.json", // defaults
+    snapshotPath = process.env.SNAPSHOT_PATH ?? "./snapshot.json",
     streamKey = "order:stream",
     enableSnapshotTimer = true
   }: EngineOptions = {}) {
@@ -140,7 +140,7 @@ export class Engine {
 
           // send reponse to redis to api on succesfull order creation
         } catch (e) { // send api message with 0 fills and 0 executed quantity
-          console.log(e) // clientId is something our api request subscribed to and whenever something with this clientId comes. it gets api
+          // console.log(e) // clientId is something our api request subscribed to and whenever something with this clientId comes. it gets api
           if (!options?.replay) {
             RedisManager.getInstance().sendToApi(clientId, {
               type: "ORDER_CANCELLED",
@@ -311,9 +311,8 @@ export class Engine {
     // after this there is update balance function 
     this.updateUserFunds(userId, orderbook, side, fills, price)
 
-    console.log(this.balances.get(userId))
-    console.log(this.balances)
-    console.log("orderbook after creatOrder", this.orderbooks.find(o => o.getTicker() == symbol))
+    // console.log(this.balances)
+    // console.log("orderbook after creatOrder", this.orderbooks.find(o => o.getTicker() == symbol))
 
     // then some worker for update db balances. db trades. publistradestoWs. publicdepthtows
 
@@ -375,7 +374,7 @@ export class Engine {
           locked: 0
         }
       }
-      console.log("quoteAsset locked", this.balances.get(userId))
+      // console.log("quoteAsset locked", this.balances.get(userId))
 
       this.balances.get(userId)![orderbook.baseAsset]!.available += totalFilllAmount
       this.balances.get(userId)![orderbook.quoteAsset]!.locked -= reserved

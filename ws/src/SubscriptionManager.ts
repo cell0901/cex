@@ -11,7 +11,7 @@ export class SubscriptionManager {
   // put in the subscribe method
 
   constructor() {
-    this.client = createClient()
+    this.client = createClient({ url: process.env.REDIS_URL ?? "redis://localhost:6379" })
     this.ready = this.client.connect()
   }
 
@@ -37,17 +37,16 @@ export class SubscriptionManager {
     this.refCount.set(channel, (previousRefs || []).concat(userId))
 
     if (this.refCount.get(channel)?.length === 1) { // means only one user or first user has come so we need to channel to the channel for this first time 
-      console.log("inside the if check measns this is the first connection")
       // it will not repeat as more 
-      console.log("for channel", channel)
+      // console.log("for channel", channel)
       await this.client.subscribe(channel, this.redisCallbackHandler)
-      console.log("redis subscribed", channel)
+      // console.log("redis subscribed", channel)
     }
   }
 
   private redisCallbackHandler = (message: string, channel: string) => {
     const parsedMessage: OutgoingMessage = JSON.parse(message)
-    console.log("parsedMessage", parsedMessage)
+    // console.log("parsedMessage", parsedMessage)
 
     this.refCount.get(channel)?.forEach(user => UserManager.getInstance().getUser(user)?.emit(parsedMessage))
   }
@@ -64,9 +63,8 @@ export class SubscriptionManager {
     if (this.refCount.get(channel)?.length === 0) { // if no user exist to keep subscribed to this  channel then unsubscribe the pub sub
       this.refCount.delete(channel)
 
-      console.log("unsubscribe called", userId, channel)
       await this.client.unsubscribe(channel)
-      console.log("redis unsubscribed", channel)
+      // console.log("redis unsubscribed", channel)
     }
   }
 

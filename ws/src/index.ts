@@ -1,7 +1,7 @@
 import WebSocket, { WebSocketServer } from "ws"
 import { UserManager } from "./UserManager"
 
-const wss = new WebSocketServer({ port: 8080 })
+const wss = new WebSocketServer({ port: Number(process.env.PORT ?? 8080) })
 
 
 // all trades from engine for specfic ticker if user subscribed to it only
@@ -13,5 +13,4 @@ wss.on('connection', (ws) => {
 
   // and subscribe to that pub/sub redis for the market trade and depth updates
 })
-
 

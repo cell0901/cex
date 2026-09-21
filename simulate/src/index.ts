@@ -1,4 +1,4 @@
-const BACKEND_URL = "http://localhost:3000/api/v1"
+const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:3000/api/v1"
 const SYMBOL = "SOL_USDC"
 const TOTAL_BIDS = 15
 const TOTAL_ASKS = 15
