@@ -41,9 +41,6 @@ export class RedisManager {
   }
 
   async trimStream(lastStreamMessageId: string, streamKey = "order:stream") {
-    console.log("trim stream ran");
-    await this.client.xTrim(streamKey, "MINID", lastStreamMessageId, {
-      strategyModifier: "~" //~ apprx is faster
-    })
+    await this.client.xTrim(streamKey, "MINID", lastStreamMessageId);
   }
 }

@@ -41,8 +41,10 @@ export class Engine {
 
     if (enableSnapshotTimer) {
       setInterval(() => {
-        this.saveSnapshot()
-      }, 1000 * 60 * 2) // every 2 min
+        this.saveSnapshot().catch((error) => {
+          console.error("snapshot failed:", error)
+        })
+      }, 1000 * 60 * 2)
     }
   }
 
@@ -86,17 +88,18 @@ export class Engine {
   }
 
   async saveSnapshot() {
-    const snapshot = {
+    const snapshot: EngineSnapshot = {
       orderbooks: this.orderbooks.map(o => o.getSnapshot()), // getSnaphost function to only get bids asks and other needed things while creating new orderbook 
       balances: Array.from(this.balances), // since balances are in map
       lastStreamMessageId: this.lastAppliedStreamId
     }
+
+    // persist snapshot first
     await fs.promises.writeFile(this.snapshotPath, JSON.stringify(snapshot))
 
-    // trim the stream after succesfull snapshot
-    void RedisManager.getInstance()
-      .trimStream(snapshot.lastStreamMessageId, this.streamKey)
-      .catch((error) => console.error(error)) // fire this promise but dont wait for it
+    // onlyt trim the stream after succesfull snapshot
+    await RedisManager.getInstance()
+      .trimStream(snapshot.lastStreamMessageId!, this.streamKey)
   }
 
   getStateForTest() { // gets the expected state for the snapshot recovery test
