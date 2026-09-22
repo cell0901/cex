@@ -91,7 +91,7 @@ export class Engine {
       balances: Array.from(this.balances), // since balances are in map
       lastStreamMessageId: this.lastAppliedStreamId
     }
-    fs.writeFileSync(this.snapshotPath, JSON.stringify(snapshot))
+    await fs.promises.writeFile(this.snapshotPath, JSON.stringify(snapshot))
 
     // trim the stream after succesfull snapshot
     void RedisManager.getInstance()

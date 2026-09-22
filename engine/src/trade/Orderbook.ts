@@ -110,79 +110,61 @@ export class Orderbook {
   //   quantity: string,
   //   side: "buy" | "sell",
   // }
-  matchBid(order: Order) { // returns fills and return quantity
-    let fills: Fill[] = []
+  matchBid(order: Order) {
+    let fills: Fill[] = [];
     let executedQuantity = 0;
 
-    // For bids, lowest price first:
     this.asks.sort((a, b) => a.price - b.price);
 
-    for (const [i, ask] of this.asks.entries()) { // this should sort price lowesst to highest
-      if (ask.price <= order.price && executedQuantity < order.quantity) {
-        // clear this ask and reduce the quantity
-        // for every ask. get the quantity add it in fills and check on other loop
-        fills.push({
-          price: ask.price,
-          quantity: Math.min((order.quantity - executedQuantity), ask.quantity), // since if ask.quantity is 10 and rreminaing is 3 then 3 should 
-          //be in the fills
-          side: order.side,
-          otherUserId: ask.userId,
-          tradeId: this.lastTradeId++
-        })
-        // increase the filled quantity of this ask order that was sitting on the orderbook 
-        this.asks[i]!.filled += Math.min((order.quantity - executedQuantity), ask.quantity)
-        executedQuantity += Math.min((order.quantity - executedQuantity), ask.quantity)
-      }
+    for (const ask of this.asks) {
+      if (executedQuantity >= order.quantity) break; // fully filled — stop scanning
+      if (ask.price > order.price) break; // sorted ascending: everything after this is also too expensive. so break early instead of scanning everything
+
+      const fillQty = Math.min(order.quantity - executedQuantity, ask.quantity - ask.filled);
+      fills.push({
+        price: ask.price,
+        quantity: fillQty,
+        side: order.side,
+        otherUserId: ask.userId,
+        tradeId: this.lastTradeId++,
+      });
+      ask.filled += fillQty;
+      executedQuantity += fillQty;
     }
 
-    // now remove every ask that has same filled and quantity
+    // single O(n) pass instead of splice-in-a-loop
+    // keeps asks only whose filled is not equal or greater than order quantity
+    this.asks = this.asks.filter(a => a.filled < a.quantity);
 
-    for (let i = 0; i < this.asks.length; i++) { // 1 8 
-      if (this.asks[i]?.quantity === this.asks[i]?.filled) {
-        this.asks.splice(i, 1) // this is gonna remove the ask at this exact index
-        // only reduce the index if we need to remove the element from the array
-        i-- // since shift to left. and we dont skip the new element that shiftee to left we added this 
-      }
-    }
-
-    return {
-      fills,
-      executedQuantity
-    }
+    return { fills, executedQuantity };
   }
 
   matchAsk(order: Order) {
-    let fills: Fill[] = []
+    let fills: Fill[] = [];
     let executedQuantity = 0;
 
-    this.bids.sort((a, b) => b.price - a.price); // best price of bids. which is highest to lowest 
+    this.bids.sort((a, b) => b.price - a.price);
 
-    for (const [i, bid] of this.bids.entries()) { // 140 140 > 
-      if (bid.price >= order.price && executedQuantity < order.quantity) {
+    for (const bid of this.bids) {
+      if (executedQuantity >= order.quantity) break;
+      if (bid.price < order.price) break; // sorted descending: everything after this is too cheap
 
-        fills.push({
-          price: bid.price,
-          quantity: Math.min((order.quantity - executedQuantity), bid.quantity),
-          side: order.side,
-          otherUserId: bid.userId,
-          tradeId: this.lastTradeId++
-        })
-        this.bids[i]!.filled += Math.min((order.quantity - executedQuantity), bid.quantity)
-        executedQuantity += Math.min((order.quantity - executedQuantity), bid.quantity)
-      }
+      const fillQty = Math.min(order.quantity - executedQuantity, bid.quantity - bid.filled);
+      fills.push({
+        price: bid.price,
+        quantity: fillQty,
+        side: order.side,
+        otherUserId: bid.userId,
+        tradeId: this.lastTradeId++,
+      });
+      bid.filled += fillQty;
+      executedQuantity += fillQty;
     }
 
-    for (let i = 0; i < this.bids.length; i++) {
-      if (this.bids[i]?.quantity === this.bids[i]?.filled) {
-        this.bids.splice(i, 1)
-        i--;
-      }
-    }
+    // keep bids only whose filled quantity is still not equal to order quantity. removed all fullfilled
+    this.bids = this.bids.filter(b => b.filled < b.quantity);
 
-    return {
-      fills,
-      executedQuantity
-    }
+    return { fills, executedQuantity };
   }
 
   cancelBid(cancelOrder: Order) {
