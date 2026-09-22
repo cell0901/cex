@@ -54,24 +54,9 @@ export class Orderbook {
     if (order.side == "buy") {
       const { fills, executedQuantity } = this.matchBid(order)
       order.filled = executedQuantity
-      if (executedQuantity === order.quantity) { // if all quantity executedQuantity then return fills
-        return {
-          fills,
-          executedQuantity
-        }
+      if (executedQuantity < order.quantity) { // if still reminaing quantity then push to bids
+        insertBid(this.bids, { ...order, filled: executedQuantity })
       }
-
-      // else push the order to bids 
-      this.bids.push({
-        userId: order.userId,
-        price: order.price,
-        quantity: order.quantity,
-        side: order.side,
-        filled: executedQuantity,
-        orderId: order.orderId
-      })
-
-
       return {
         fills,
         executedQuantity
@@ -80,23 +65,10 @@ export class Orderbook {
     } else {
       const { fills, executedQuantity } = this.matchAsk(order)
 
-      if (executedQuantity == order.quantity) {
-        return {
-          fills,
-          executedQuantity
-        }
+      if (executedQuantity < order.quantity) {
+        insertAsk(this.asks, { ...order, filled: executedQuantity })
+
       }
-
-      // else push the order to asks
-      this.asks.push({
-        userId: order.userId,
-        price: order.price,
-        quantity: order.quantity,
-        side: order.side,
-        filled: executedQuantity,
-        orderId: order.orderId
-      })
-
       return {
         fills,
         executedQuantity
@@ -113,10 +85,14 @@ export class Orderbook {
   matchBid(order: Order) {
     let fills: Fill[] = [];
     let executedQuantity = 0;
+    let removeIndices: any[] = [];
 
-    this.asks.sort((a, b) => a.price - b.price);
 
-    for (const ask of this.asks) {
+    for (let i = 0; i < this.asks.length; i++) {
+      const ask = this.asks[i];
+      if (!ask) {
+        throw new Error("ask doenst exist");
+      };
       if (executedQuantity >= order.quantity) break; // fully filled — stop scanning
       if (ask.price > order.price) break; // sorted ascending: everything after this is also too expensive. so break early instead of scanning everything
 
@@ -130,11 +106,15 @@ export class Orderbook {
       });
       ask.filled += fillQty;
       executedQuantity += fillQty;
+
+      if (ask.filled >= ask.quantity) removeIndices.push(i); // this ask should be removed from array
     }
 
-    // single O(n) pass instead of splice-in-a-loop
-    // keeps asks only whose filled is not equal or greater than order quantity
-    this.asks = this.asks.filter(a => a.filled < a.quantity);
+    // Remove fully-filled asks. Splice from highest index down to lowest so
+    // removing one doesn't shift the position of indices we haven't handled yet.
+    for (let j = removeIndices.length - 1; j >= 0; j--) {
+      this.asks.splice(removeIndices[j], 1);
+    }
 
     return { fills, executedQuantity };
   }
@@ -142,10 +122,14 @@ export class Orderbook {
   matchAsk(order: Order) {
     let fills: Fill[] = [];
     let executedQuantity = 0;
+    let removeIndices: any[] = [];
 
-    this.bids.sort((a, b) => b.price - a.price);
+    for (let i = 0; i < this.bids.length; i++) {
+      const bid = this.bids[i];
+      if (!bid) {
+        throw new Error("no bid found");
+      }
 
-    for (const bid of this.bids) {
       if (executedQuantity >= order.quantity) break;
       if (bid.price < order.price) break; // sorted descending: everything after this is too cheap
 
@@ -159,10 +143,14 @@ export class Orderbook {
       });
       bid.filled += fillQty;
       executedQuantity += fillQty;
+
+      if (bid.filled >= bid.quantity) removeIndices.push(i);
+
     }
 
-    // keep bids only whose filled quantity is still not equal to order quantity. removed all fullfilled
-    this.bids = this.bids.filter(b => b.filled < b.quantity);
+    for (let j = removeIndices.length - 1; j >= 0; j--) {
+      this.bids.splice(removeIndices[j], 1);
+    }
 
     return { fills, executedQuantity };
   }
@@ -250,4 +238,28 @@ export class Orderbook {
     const found = this.bids.some(bid => bid.userId == incomingAskUserId && bid.price >= Number(sellPrice))
     return found
   }
+}
+
+// Binary search for the correct insertion index to keep the array sorted.
+// compareFn should return negative if a belongs before b.
+function findInsertIndex(arr: Order[], price: number, compareFn: any) {
+  let lo = 0, hi = arr.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    if (compareFn(arr[mid]!.price, price) < 0) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
+// bids: sorted descending (highest price first)
+function insertBid(bids: Order[], order: Order) {
+  const idx = findInsertIndex(bids, order.price, (a: number, b: number) => b - a);
+  bids.splice(idx, 0, order);
+}
+
+// asks: sorted ascending (lowest price first)
+function insertAsk(asks: Order[], order: Order) {
+  const idx = findInsertIndex(asks, order.price, (a: number, b: number) => a - b);
+  asks.splice(idx, 0, order);
 }

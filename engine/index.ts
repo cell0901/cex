@@ -5,7 +5,7 @@ import { Engine } from "./src/trade/Engine";
 const engine = new Engine()
 
 async function main() {
-  const redisClient = createClient()
+  const redisClient = createClient({ url: process.env.REDIS_URL ?? "redis://localhost:6379" })
   await redisClient.connect()
   // infinite runing loop. constantly removing messages from the the queue
   // should use brpop since it will not run loop continously spiking cpu usage instead 
@@ -18,7 +18,7 @@ async function main() {
 }
 
 async function readStream() {
-  const redistClient = createClient()
+  const redistClient = createClient({ url: process.env.REDIS_URL ?? "redis://localhost:6379" })
   await redistClient.connect()
 
   let lastId = engine.getLastAppliedStreamId() ?? "0-0" // 0-0 means start from ids greater than 0-0 means from very beggining
