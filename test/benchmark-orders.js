@@ -5,10 +5,7 @@
  *   1. Log in as a buyer and a seller (two pre-existing signed-up users).
  *   2. Onramp BOTH quote asset (e.g. USDC) and base asset (e.g. SOL) for
  *      both users, so neither order gets rejected for insufficient balance.
- *   3. Wait for balances to actually settle in the DB before trading —
- *      either by polling a balance endpoint (preferred, if you have one)
- *      or falling back to a flat delay.
- *   4. Run concurrent BUY-only and SELL-only load tests at a fixed price
+ *   3. Run concurrent BUY-only and SELL-only load tests at a fixed price
  *      so orders actually cross and match (avoids self-trade prevention
  *      rejecting everything, which would happen with a single user).
  *
@@ -17,12 +14,10 @@
  *
  * Before running:
  *   1. Sign up two test users manually (via your UI or signup endpoint).
- *   2. Confirm BASE_URL, LOGIN_ENDPOINT, ONRAMP_ENDPOINT,
- *      ONRAMP_BASE_ENDPOINT, ORDER_ENDPOINT below match your routes.
- *   3. If you have a balance-check endpoint, fill in BALANCE_ENDPOINT and
+ *   2. If you have a balance-check endpoint, fill in BALANCE_ENDPOINT and
  *      set USE_BALANCE_POLLING = true. Otherwise leave it false and it
  *      will just wait FALLBACK_DELAY_MS.
- *   4. Run: node benchmark-orders.js
+ *   3. Run: node benchmark-orders.js / bun benchmark-orders.js
  */
 
 const autocannon = require('autocannon');
@@ -37,7 +32,6 @@ const BENCHMARK_DURATION_SECONDS = 30;
 // --- balance-settling config ---
 const USE_BALANCE_POLLING = false;           // <-- set true if you have a balance endpoint
 const BALANCE_ENDPOINT = '/api/v1/balance';  // <-- fill in your real route if used
-const POLL_INTERVAL_MS = 300;
 const POLL_TIMEOUT_MS = 10000;
 const FALLBACK_DELAY_MS = 1500;              // used when USE_BALANCE_POLLING is false
 
@@ -46,7 +40,7 @@ const SELLER = { username: 'seller@test.com', password: 'testpass123' };
 
 // Large enough that thousands of test orders won't exhaust it.
 // Adjust the type if your onRampSchema expects a number instead of a string.
-const ONRAMP_AMOUNT = '1000000';
+const ONRAMP_AMOUNT = '100000000';
 
 function extractToken(loginResponseJson) {
   return loginResponseJson.token;
@@ -125,38 +119,37 @@ function runOrderBenchmark({ label, token, side }) {
   };
 
   return autocannon({
-    url: BASE_URL + ORDER_ENDPOINT,
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `${token}`,
-    },
-    connections: 50, // 50 buyer + 50 seller connections = 100 total.
+    url: BASE_URL,
+    connections: 400,
     duration: BENCHMARK_DURATION_SECONDS,
-    body: JSON.stringify({
-      type: 'limit',
-      symbol: 'SOL_USDC',
-      side,              // 'buy' or 'sell'
-      price: '500.00',   // fixed so buy/sell cross and match
-      quantity: '0.1',
-    }),
-    onResponse(statusCode, body) {
-      if (statusCode < 200 || statusCode >= 300) return;
-
-      try {
-        const response = JSON.parse(body.toString());
-
-        if (response.payload?.type === 'ORDER_PLACED') {
-          orders.placed++;
-        } else if (response.payload?.type === 'ORDER_CANCELLED') {
-          orders.rejected++;
-        } else {
-          orders.invalidResponse++;
-        }
-      } catch {
-        orders.invalidResponse++;
-      }
-    },
+    requests: [
+      {
+        method: 'POST',
+        path: ORDER_ENDPOINT,
+        headers: {
+          'content-type': 'application/json',
+          'authorization': `${token}`,
+        },
+        body: JSON.stringify({
+          type: 'limit',
+          symbol: 'SOL_USDC',
+          side,
+          price: '500.00',
+          quantity: '0.1',
+        }),
+        onResponse(status, body) {
+          if (status < 200 || status >= 300) return;
+          try {
+            const response = JSON.parse(body.toString());
+            if (response.payload?.type === 'ORDER_PLACED') orders.placed++;
+            else if (response.payload?.type === 'ORDER_CANCELLED') orders.rejected++;
+            else orders.invalidResponse++;
+          } catch {
+            orders.invalidResponse++;
+          }
+        },
+      },
+    ],
   }).then((result) => ({ label, result, orders }));
 }
 
