@@ -43,7 +43,7 @@ A small, full-stack cryptocurrency-exchange prototype built around an in-memory 
 
 ## Overview
 
-- Sign-up and sign-in with JWT authentication.
+- Sign-up and sign-in with JWT authentication and Bun password hashing.
 - USDC and SOL demo on-ramping.
 - Limit buy and sell orders, matching, partial fills, and cancellations.
 - Self-trade prevention in the matching engine.
@@ -177,7 +177,7 @@ authorization: <token>
 
 | Method | Route | Body | Description |
 | --- | --- | --- | --- |
-| `POST` | `/auth/signup` | `{ "username", "password" }` | Creates a user. Both fields must be at least 5 characters. |
+| `POST` | `/auth/signup` | `{ "username", "password" }` | Creates a user. Passwords are hashed with Bun before storage; both fields must be at least 5 characters. |
 | `POST` | `/auth/signin` | `{ "username", "password" }` | Returns `{ "token" }`. |
 | `POST` | `/auth/onramp` | `{ "amount": "1000" }` | Adds demo USDC to the authenticated user. |
 | `POST` | `/auth/onramp-base` | `{ "amount": "10" }` | Adds demo SOL to the authenticated user. |
@@ -285,6 +285,5 @@ cex/
 ## Current limitations and next steps
 
 - Only `SOL_USDC` is initialized by the engine; multi-market initialization is the next major extension.
-- Authentication Passwords are not hashed.
 - Order and trade persistence is intentionally incomplete; the database worker currently persists trades for charting.
 - Add matching fairness for price - time priority than lowest ask or highest bid

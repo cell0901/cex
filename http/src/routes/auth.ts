@@ -21,11 +21,12 @@ authRouter.post('/signup', asyncHandler(async (req, res) => {
   }
 
   // else create the user
+  const hashedPassword = await Bun.password.hash(data.password);
 
   const user = await prisma.user.create({
     data: {
       username: data.username,
-      password: data.password,
+      password: hashedPassword,
     }
   })
   // asyncHandler  should handle show error if creating unique field
@@ -50,17 +51,16 @@ authRouter.post('/signin', asyncHandler(async (req, res) => {
     return
   }
 
-  // else create the jwt and return the to user with userid
+  // Find by username first; passwords cannot be queried after hashing.
   const user = await prisma.user.findFirst({
     where: {
       username: data?.username,
-      password: data?.password
     }
   })
 
-  if (!user) {
+  if (!user || !(await Bun.password.verify(data.password, user.password))) {
     res.status(401).json({
-      message: "no user found. please signup"
+      message: "invalid username or password"
     })
     return
   }
